@@ -174,9 +174,12 @@ def generate_html_dashboard(
 </head>
 <body>
     <div class="header">
-        <div class="container" style="padding: 0;">
-            <h1>Plaq OS</h1>
-            <p class="subtitle">Fault-Tolerant Quantum Execution Planner & Cross-Layer Resource Optimizer</p>
+        <div class="container" style="padding: 0; display: flex; align-items: center; gap: 18px;">
+            <img src="../assets/logo.jpg" alt="Plaq OS Logo" style="width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 2px solid #00f0ff; box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);" onerror="this.style.display='none';">
+            <div>
+                <h1 style="margin: 0; font-size: 2.2rem; letter-spacing: 1px;">Plaq OS</h1>
+                <p class="subtitle" style="margin: 4px 0 0 0;">Fault-Tolerant Quantum Execution Planner & Cross-Layer Resource Optimizer</p>
+            </div>
         </div>
     </div>
 
@@ -184,9 +187,9 @@ def generate_html_dashboard(
         <!-- Metric Cards -->
         <div class="metrics-grid">
             <div class="card">
-                <div class="metric-title">Max Cost Reduction</div>
+                <div class="metric-title">Cost Metric Reduction</div>
                 <div class="metric-value" style="color: var(--success);">{max_cost_reduction}%</div>
-                <div class="metric-sub">Over standard sequential compilation</div>
+                <div class="metric-sub">Multi-objective scalar cost score</div>
             </div>
             <div class="card">
                 <div class="metric-title">Peak Runtime Speedup</div>
@@ -194,19 +197,19 @@ def generate_html_dashboard(
                 <div class="metric-sub">Decoder backlog stall eliminated</div>
             </div>
             <div class="card">
-                <div class="metric-title">Physical Qubits Saved</div>
-                <div class="metric-value">{total_savings}</div>
-                <div class="metric-sub">On critical algorithm kernels</div>
+                <div class="metric-title">Physical Qubits Delta</div>
+                <div class="metric-value">{'+' if total_savings > 0 else ''}{total_savings}</div>
+                <div class="metric-sub">Pareto trade-off vs runtime</div>
             </div>
             <div class="card">
                 <div class="metric-title">Hypothesis Status</div>
-                <div class="metric-value" style="color: var(--success); font-size: 1.8rem;">CONFIRMED</div>
-                <div class="metric-sub">Across 6 workload families</div>
+                <div class="metric-value" style="color: #2563eb; font-size: 1.5rem;">MODEL VALIDATED</div>
+                <div class="metric-sub">Pareto Trade-Off Discovered</div>
             </div>
         </div>
 
         <!-- Research Hypothesis Validation Table -->
-        <div class="section-title">Experimental Hypothesis Validation: Sequential vs Joint Optimization</div>
+        <div class="section-title">Experimental Hypothesis Evaluation: Sequential Baseline vs Joint Optimization</div>
         <div class="table-container">
             <table>
                 <thead>

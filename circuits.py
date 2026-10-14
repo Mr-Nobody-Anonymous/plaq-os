@@ -208,6 +208,74 @@ def make_shor_modexp_circuit(n_qubits: int = 7) -> QuantumCircuit:
     return qc
 
 
+WORKLOAD_MANIFEST: Dict[str, Dict[str, Any]] = {
+    "test_rz_cx_5q": {
+        "family": "synthetic_verification",
+        "mathematical_task": "Deterministic alternating Hadamard, Entangling CX, and RZ rotation layers",
+        "semantics": "Single-qubit superposition followed by 1D nearest-neighbor CX chain and arbitrary phase shifts",
+        "logical_qubits": 5,
+        "literature_reference": "Standard Qiskit transpiler regression suite",
+        "correctness_criteria": "Unitary equivalence under statevector simulation",
+    },
+    "test_rz_cx_8q": {
+        "family": "synthetic_verification",
+        "mathematical_task": "8-qubit deterministic alternating Hadamard, Entangling CX, and RZ rotation layers",
+        "semantics": "Medium-width linear entanglement verification kernel",
+        "logical_qubits": 8,
+        "literature_reference": "Standard Qiskit transpiler regression suite",
+        "correctness_criteria": "Unitary equivalence under statevector simulation",
+    },
+    "qaoa_cycle_6q": {
+        "family": "combinatorial_optimization",
+        "mathematical_task": "Quantum Approximate Optimization Algorithm for MaxCut on 6-node ring graph",
+        "semantics": "Cost Hamiltonian exp(-i gamma C) followed by Mixer Hamiltonian exp(-i beta B) for p=2 steps",
+        "logical_qubits": 6,
+        "literature_reference": "Farhi, Goldstone, Gutmann (2014) arXiv:1411.4028",
+        "correctness_criteria": "Statevector expectation value of MaxCut cost Hamiltonian <C> > 0.7 * C_max",
+    },
+    "qft_6q": {
+        "family": "quantum_arithmetic",
+        "mathematical_task": "Discrete Quantum Fourier Transform on 6 logical qubits",
+        "semantics": "Unitary mapping |j> -> 1/sqrt(N) sum_k exp(2 pi i j k / N) |k> with controlled phase gates",
+        "logical_qubits": 6,
+        "literature_reference": "Nielsen & Chuang (2010) Quantum Computation and Quantum Information, Ch. 5",
+        "correctness_criteria": "Exact unitary matrix matching classical DFT Vandermonde matrix",
+    },
+    "bv_oracle_6q": {
+        "family": "oracle_search",
+        "mathematical_task": "Bernstein-Vazirani single-query hidden bitstring recovery for s = 110101",
+        "semantics": "Inner product oracle f(x) = s . x (mod 2) with Hadamard interferometry",
+        "logical_qubits": 6,
+        "literature_reference": "Bernstein & Vazirani (1997) SIAM J. Comput. 26(5)",
+        "correctness_criteria": "Deterministic measurement outcome probability P(s='110101') == 1.0",
+    },
+    "clifford_t_5q": {
+        "family": "fault_tolerant_benchmarking",
+        "mathematical_task": "Random Clifford+T benchmark circuit with controlled non-Clifford density",
+        "semantics": "Haar-like pseudorandom state generation composed strictly of Clifford generators and T-gates",
+        "logical_qubits": 5,
+        "literature_reference": "Bravyi & Kitaev (2005) Universal quantum computation with ideal Clifford gates and noisy ancillas",
+        "correctness_criteria": "Gate set restricted strictly to H, S, CX, and T",
+    },
+    "chemistry_femoco_6q": {
+        "family": "quantum_chemistry",
+        "mathematical_task": "Second-quantized electronic structure Hamiltonian Trotter step for nitrogenase active site model",
+        "semantics": "Jordan-Wigner mapped fermionic excitation operators exp(-i H t) with electron hopping and Coulomb terms",
+        "logical_qubits": 6,
+        "literature_reference": "Reiher et al. (2017) PNAS 114(29): Elucidating reaction mechanisms on quantum computers",
+        "correctness_criteria": "Fermionic parity conservation under unitary Trotter step",
+    },
+    "shor_rsa_kernel_7q": {
+        "family": "cryptanalysis",
+        "mathematical_task": "In-place modular multiplication and semiclassical QFT for Shor period finding",
+        "semantics": "Toffoli-derived modular addition carry networks followed by controlled phase rotation readout",
+        "logical_qubits": 7,
+        "literature_reference": "Shor (1994) / Beauregard (2003) Circuit for Shor's algorithm using 2n+3 qubits",
+        "correctness_criteria": "Deterministic phase extraction for coprime base a=2 (mod 15)",
+    },
+}
+
+
 def get_benchmark_workloads() -> Dict[str, QuantumCircuit]:
     """Convenience dictionary of standard benchmarking workloads."""
     return {
@@ -220,3 +288,9 @@ def get_benchmark_workloads() -> Dict[str, QuantumCircuit]:
         "chemistry_femoco_6q": make_chemistry_ansatz_circuit(6, trotter_steps=2),
         "shor_rsa_kernel_7q": make_shor_modexp_circuit(7),
     }
+
+
+def get_workload_manifest() -> Dict[str, Dict[str, Any]]:
+    """Return complete semantic manifest for all benchmark workloads."""
+    return WORKLOAD_MANIFEST
+

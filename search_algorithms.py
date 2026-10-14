@@ -336,7 +336,9 @@ def benchmark_search_methods(
     results: List[SearchBenchmarkResult] = []
 
     for name, func, kwargs in methods:
-        evals, duration = func(circuit, hardware, target_epsilon, compilation_cache=compilation_cache, **kwargs)
+        # Use an isolated fresh cache to prevent cache-hit bias across benchmarked methods
+        isolated_cache = CompilationCache()
+        evals, duration = func(circuit, hardware, target_epsilon, compilation_cache=isolated_cache, **kwargs)
         valid_plans = [p for p in evals if p.valid]
         best_p = min(valid_plans, key=lambda x: x.total_cost_score) if valid_plans else None
 

@@ -2,6 +2,7 @@
 Unit tests for fault-tolerant cost model and resource scaling.
 """
 
+import math
 import pytest
 from circuits import make_test_circuit
 from hardware import DEMO_HARDWARE, SUPERCONDUCTING_HERON, QLDPC_BIVARIATE_BICYCLE
@@ -9,7 +10,25 @@ from cost_model import (
     extract_circuit_metrics,
     solve_minimum_code_distance,
     evaluate_fault_tolerant_cost,
+    synthesize_rotation_t_count,
 )
+
+
+def test_synthesize_rotation_t_count():
+    # Exact Clifford angles require 0 T-gates
+    assert synthesize_rotation_t_count(0.0) == 0
+    assert synthesize_rotation_t_count(math.pi / 2.0) == 0
+    assert synthesize_rotation_t_count(math.pi) == 0
+
+    # Exact T gate angle requires 1 T-gate
+    assert synthesize_rotation_t_count(math.pi / 4.0) == 1
+    assert synthesize_rotation_t_count(7 * math.pi / 4.0) == 1
+
+    # Arbitrary angle requires precision synthesis scaling
+    t_med = synthesize_rotation_t_count(0.31, target_synthesis_error=1e-3)
+    t_high = synthesize_rotation_t_count(0.31, target_synthesis_error=1e-8)
+    assert t_med > 1
+    assert t_high > t_med
 
 
 def test_extract_circuit_metrics():
@@ -19,26 +38,40 @@ def test_extract_circuit_metrics():
     assert metrics.depth > 0
     assert metrics.two_qubit_ops > 0
     assert metrics.single_qubit_ops > 0
+    assert metrics.t_ops > 0
+    assert metrics.t_depth > 0
 
 
 def test_solve_minimum_code_distance():
-    d1 = solve_minimum_code_distance(
+    d1, feasible1, reason1 = solve_minimum_code_distance(
         physical_error=1e-3,
         threshold=0.01,
         spacetime_volume=1000,
         allocated_error_budget=1e-3,
     )
+    assert feasible1 is True
     assert d1 % 2 == 1
     assert d1 >= 3
 
-    d2 = solve_minimum_code_distance(
+    d2, feasible2, reason2 = solve_minimum_code_distance(
         physical_error=1e-3,
         threshold=0.01,
         spacetime_volume=10_000_000,
         allocated_error_budget=1e-4,
     )
+    assert feasible2 is True
     assert d2 >= d1
     assert d2 % 2 == 1
+
+    # Infeasible: error rate above threshold
+    d_inf, feasible_inf, reason_inf = solve_minimum_code_distance(
+        physical_error=0.02,
+        threshold=0.01,
+        spacetime_volume=1000,
+        allocated_error_budget=1e-3,
+    )
+    assert feasible_inf is False
+    assert "threshold" in reason_inf
 
 
 def test_evaluate_fault_tolerant_cost_structure():

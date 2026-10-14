@@ -34,11 +34,20 @@ def test_grid_coupling_edges():
     assert len(node_4_out) == 4
 
 
+def test_heavy_hex_coupling_edges():
+    edges = SUPERCONDUCTING_HERON.get_coupling_edges(12)
+    assert len(edges) > 0
+    assert (0, 1) in edges
+    assert SUPERCONDUCTING_HERON.provenance != ""
+    assert SUPERCONDUCTING_HERON.calibration_uncertainty_percent > 0
+
+
 def test_qldpc_hardware_profile():
     hw = QLDPC_BIVARIATE_BICYCLE
     assert hw.technology == "qldpc"
     edges = hw.get_coupling_edges(9)
     assert len(edges) > 0
+    assert "Nature 2024" in hw.provenance
 
 
 def test_hardware_catalog_presets():
@@ -49,3 +58,4 @@ def test_hardware_catalog_presets():
     for name, hw in HARDWARE_CATALOG.items():
         assert hw.single_qubit_error > 0
         assert hw.two_qubit_error > 0
+        assert hw.provenance != ""

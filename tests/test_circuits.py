@@ -12,6 +12,7 @@ from circuits import (
     make_chemistry_ansatz_circuit,
     make_shor_modexp_circuit,
     get_benchmark_workloads,
+    get_workload_manifest,
 )
 
 
@@ -74,3 +75,17 @@ def test_get_benchmark_workloads():
     assert len(workloads) >= 6
     for name, qc in workloads.items():
         assert qc.num_qubits >= 4
+
+
+def test_workload_manifest():
+    manifest = get_workload_manifest()
+    workloads = get_benchmark_workloads()
+    for name in workloads.keys():
+        assert name in manifest
+        entry = manifest[name]
+        assert "family" in entry
+        assert "mathematical_task" in entry
+        assert "semantics" in entry
+        assert "literature_reference" in entry
+        assert "correctness_criteria" in entry
+

@@ -50,6 +50,24 @@ class QuantumApiHandler(SimpleHTTPRequestHandler):
                 ],
                 "search_algorithms": ["Exhaustive Grid", "Greedy Coordinate", "Simulated Annealing", "Random Search"],
             })
+        elif parsed.path.startswith("/assets/"):
+            rel_path = parsed.path.lstrip("/")
+            file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), rel_path)
+            if os.path.exists(file_path):
+                self.send_response(200)
+                if file_path.endswith(".jpg") or file_path.endswith(".jpeg"):
+                    self.send_header("Content-Type", "image/jpeg")
+                elif file_path.endswith(".png"):
+                    self.send_header("Content-Type", "image/png")
+                elif file_path.endswith(".svg"):
+                    self.send_header("Content-Type", "image/svg+xml")
+                self.end_headers()
+                with open(file_path, "rb") as f:
+                    self.wfile.write(f.read())
+                return
+            else:
+                self.send_error(404, "Asset not found")
+                return
         elif parsed.path in ("/", "/index.html"):
             index_path = os.path.join(UI_DIR, "index.html")
             if os.path.exists(index_path):

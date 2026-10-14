@@ -98,11 +98,49 @@ DECODER_LATENCY_SPECS: Dict[str, float] = {
 }
 
 
+import hashlib
+
+def compute_compilation_fingerprint(
+    circuit: QuantumCircuit,
+    hardware: HardwareModel,
+    opt_level: int,
+    routing_method: str,
+    layout_method: str,
+    seed: int,
+) -> str:
+    """
+    Generate cryptographically unique SHA-256 canonical fingerprint for a compilation pass.
+    Includes ordered gates, parameter floats, qubit registers, coupling graph, and compiler seed.
+    """
+    hasher = hashlib.sha256()
+    hasher.update(circuit.name.encode("utf-8"))
+    hasher.update(f":{circuit.num_qubits}:{circuit.num_clbits}:".encode("utf-8"))
+    for inst in circuit.data:
+        op = inst.operation
+        q_indices = [circuit.find_bit(q).index for q in inst.qubits]
+        params_str = ",".join(f"{float(p):.8f}" for p in op.params if isinstance(p, (int, float)))
+        hasher.update(f"{op.name}[{','.join(map(str, q_indices))}]:{params_str};".encode("utf-8"))
+
+    edges_str = str(sorted(hardware.get_coupling_edges(circuit.num_qubits)))
+    hasher.update(f":hw={hardware.name}:{edges_str}:".encode("utf-8"))
+    hasher.update(f":opt={opt_level}:rout={routing_method}:lay={layout_method}:seed={seed}:".encode("utf-8"))
+    try:
+        import qiskit
+        hasher.update(f"qiskit={qiskit.__version__}".encode("utf-8"))
+    except Exception:
+        pass
+    return hasher.hexdigest()
+
+
 class CompilationCache:
-    """Caches compiled circuit metrics to avoid redundant transpilation passes."""
+    """
+    Caches compiled circuit metrics using canonical SHA-256 fingerprints
+    to avoid redundant transpilation passes while preventing cache collisions.
+    """
 
     def __init__(self) -> None:
-        self._cache: Dict[Tuple[Any, int, str, str, int, str], Optional[CircuitMetrics]] = {}
+        self._cache: Dict[str, Optional[CircuitMetrics]] = {}
+        self.last_errors: Dict[str, str] = {}
 
     def get_or_compile(
         self,
@@ -113,8 +151,14 @@ class CompilationCache:
         layout_method: str,
         seed: int = 42,
     ) -> Optional[CircuitMetrics]:
-        circuit_id = (circuit.name, circuit.num_qubits, circuit.size(), tuple(circuit.count_ops().items()))
-        key = (circuit_id, opt_level, routing_method, layout_method, seed, hardware.name)
+        key = compute_compilation_fingerprint(
+            circuit=circuit,
+            hardware=hardware,
+            opt_level=opt_level,
+            routing_method=routing_method,
+            layout_method=layout_method,
+            seed=seed,
+        )
         if key in self._cache:
             return self._cache[key]
 
@@ -134,7 +178,8 @@ class CompilationCache:
             metrics = extract_circuit_metrics(compiled)
             self._cache[key] = metrics
             return metrics
-        except Exception:
+        except Exception as exc:
+            self.last_errors[key] = f"{type(exc).__name__}: {str(exc)}"
             self._cache[key] = None
             return None
 
@@ -404,13 +449,26 @@ def compare_sequential_vs_joint(
     else:
         relative_reduction = 0.0
 
+    qubit_delta = seq_eval.physical_qubits - best_joint.physical_qubits
+    runtime_speedup = round(seq_eval.runtime_seconds / max(1e-9, best_joint.runtime_seconds), 2)
+    failure_delta = best_joint.failure_probability - seq_eval.failure_probability
+
+    if qubit_delta < 0 and runtime_speedup > 1.0:
+        trade_off_class = "Pareto trade-off (higher physical qubits for runtime speedup)"
+    elif qubit_delta >= 0 and runtime_speedup >= 1.0:
+        trade_off_class = "Strict multi-objective Pareto dominance"
+    else:
+        trade_off_class = "Domain-constrained trade-off"
+
     return {
         "workload_qubits": circuit.num_qubits,
         "sequential_baseline": seq_eval.to_row(),
         "joint_optimized": best_joint.to_row(),
         "relative_cost_reduction_percent": round(relative_reduction * 100, 2),
-        "qubit_savings": seq_eval.physical_qubits - best_joint.physical_qubits,
-        "runtime_speedup": round(seq_eval.runtime_seconds / max(1e-9, best_joint.runtime_seconds), 2),
+        "qubit_savings": qubit_delta,
+        "runtime_speedup": runtime_speedup,
+        "failure_probability_delta": round(failure_delta, 8),
+        "trade_off_classification": trade_off_class,
         "pareto_frontier_size": len(pareto_frontier),
         "total_evaluated_plans": len(all_evaluated),
     }

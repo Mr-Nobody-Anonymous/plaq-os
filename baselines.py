@@ -159,8 +159,8 @@ def run_four_baselines_protocol(
         ),
         BaselineComparisonRecord(
             baseline_id="B3",
-            baseline_name="Existing Resource Estimator",
-            description="Decoupled resource estimator (Microsoft QRE pattern) with fixed circuit and default decoding.",
+            baseline_name="Decoupled Estimator Baseline (MS QRE Pattern)",
+            description="Decoupled resource estimation pattern (inspired by Azure QRE decoupled workflow): fixed circuit transpilation with separate post-facto QEC allocation.",
             physical_qubits=eval_b3.physical_qubits,
             runtime_seconds=eval_b3.runtime_seconds,
             code_distance=eval_b3.code_distance,
@@ -172,8 +172,8 @@ def run_four_baselines_protocol(
         ),
         BaselineComparisonRecord(
             baseline_id="B4",
-            baseline_name="Q-Day Joint Optimizer",
-            description="Joint cross-layer optimization across transpilation, routing, factories, and decoder ASIC.",
+            baseline_name="Plaq Joint Optimizer",
+            description="Joint cross-layer co-optimization across transpilation, routing, factories, and decoder ASIC.",
             physical_qubits=best_b4.physical_qubits,
             runtime_seconds=best_b4.runtime_seconds,
             code_distance=best_b4.code_distance,

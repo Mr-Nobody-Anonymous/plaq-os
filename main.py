@@ -40,6 +40,80 @@ from search_algorithms import benchmark_search_methods
 from server import start_quantum_server
 
 
+def generate_run_manifest(output_path: str = "results/run_manifest.json") -> dict:
+    """Generate execution run manifest recording hardware profiles, dependencies, and git state."""
+    import platform
+    import subprocess
+    from datetime import datetime, timezone
+
+    git_sha = "unknown"
+    git_branch = "unknown"
+    try:
+        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        git_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+    except Exception:
+        pass
+
+    packages = {}
+    for pkg in ["qiskit", "stim", "pymatching", "numpy", "pandas", "scipy", "matplotlib", "pytest"]:
+        try:
+            mod = __import__(pkg)
+            packages[pkg] = getattr(mod, "__version__", "unknown")
+        except ImportError:
+            packages[pkg] = "not installed"
+
+    manifest = {
+        "project": "Plaq OS",
+        "version": "0.3.0",
+        "description": "Fault-Tolerant Quantum Execution Planner & Cross-Layer Resource Optimizer",
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "git": {
+            "sha": git_sha,
+            "branch": git_branch,
+            "repository": "https://github.com/Mr-Nobody-Anonymous/plaq-os",
+        },
+        "environment": {
+            "python_version": sys.version,
+            "platform": platform.platform(),
+            "os": platform.system(),
+            "architecture": platform.machine(),
+        },
+        "dependencies": packages,
+        "qec_simulator": {
+            "engine": "Stim 1.16+ (rotated surface code memory experiments)",
+            "decoder": "PyMatching 2.4+ (Minimum-Weight Perfect Matching / MWPM)",
+            "confidence_intervals": "Wilson Score 95% Confidence Interval",
+        },
+        "hardware_profiles": {
+            k: {
+                "name": v.name,
+                "technology": v.technology,
+                "single_qubit_error": v.single_qubit_error,
+                "two_qubit_error": v.two_qubit_error,
+                "measurement_error": v.measurement_error,
+                "surface_code_threshold": v.surface_code_threshold,
+                "qec_architecture": v.qec_architecture,
+                "calibration_uncertainty_percent": v.calibration_uncertainty_percent,
+                "provenance": v.provenance,
+            }
+            for k, v in HARDWARE_CATALOG.items()
+        },
+        "reproducibility": {
+            "transpiler_seed": 42,
+            "search_random_seed": 42,
+            "synthesis_epsilon": 1e-4,
+            "target_reliability_epsilon": 1e-3,
+        }
+    }
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+    print(f"[+] Saved execution run manifest to: {output_path}", flush=True)
+    return manifest
+
+
+
 def export_pareto_plot(
     evaluated_plans: list[EvaluatedPlan],
     pareto_plans: list[EvaluatedPlan],
@@ -270,9 +344,10 @@ def run_search_bench_action(args: argparse.Namespace, cache: CompilationCache | 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Q-Day OS: Fault-Tolerant Quantum Execution Planner & Resource Optimizer"
+        description="Plaq OS: Fault-Tolerant Quantum Execution Planner & Cross-Layer Resource Optimizer"
     )
     parser.add_argument("--run-all", action="store_true", help="Execute complete R&D research workflow today")
+    parser.add_argument("--manifest", action="store_true", help="Generate execution run manifest JSON")
     parser.add_argument("--benchmark", action="store_true", help="Run compiler baseline benchmarks")
     parser.add_argument("--optimize", action="store_true", help="Run joint cross-layer Pareto optimization")
     parser.add_argument("--compare", action="store_true", help="Compare Sequential baseline vs Joint Optimizer")
@@ -288,7 +363,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if not any([args.run_all, args.benchmark, args.optimize, args.compare, args.baselines, args.ablation, args.search_bench, args.dashboard, args.ui]):
+    if not any([args.run_all, args.manifest, args.benchmark, args.optimize, args.compare, args.baselines, args.ablation, args.search_bench, args.dashboard, args.ui]):
         args.run_all = True
 
     shared_cache = CompilationCache()
@@ -299,8 +374,12 @@ def main() -> None:
         start_quantum_server(port=args.port)
         return
 
+    if args.manifest:
+        generate_run_manifest()
+
     if args.run_all:
         print("\n>>> STARTING COMPLETE 1-DAY RESEARCH & DEVELOPMENT RUN <<<\n", flush=True)
+        generate_run_manifest()
         run_full_benchmark_suite(hardware_name=args.hardware, target_epsilon=args.epsilon)
         run_optimization_action(args, cache=shared_cache)
         run_comparison_action(args, cache=shared_cache)
