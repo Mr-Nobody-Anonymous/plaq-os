@@ -1,0 +1,43 @@
+[
+  {
+    "workload_qubits": 6,
+    "sequential_baseline": {
+      "opt_level": 3,
+      "routing": "basic",
+      "layout": "trivial",
+      "factories": 1,
+      "qec_strategy": "minimal_safe",
+      "decoder": "distributed_cpu",
+      "code_family": "surface_code_rotated",
+      "valid": true,
+      "physical_qubits": 5036,
+      "runtime_s": 0.009576,
+      "failure_prob": 0.00019176552973901258,
+      "code_distance": 17,
+      "total_cost": 9824.0,
+      "pareto": false
+    },
+    "joint_optimized": {
+      "opt_level": 3,
+      "routing": "basic",
+      "layout": "dense",
+      "factories": 2,
+      "qec_strategy": "minimal_safe",
+      "decoder": "streaming_asic",
+      "code_family": "surface_code_rotated",
+      "valid": true,
+      "physical_qubits": 5836,
+      "runtime_s": 0.00385,
+      "failure_prob": 0.0004049744240626782,
+      "code_distance": 15,
+      "total_cost": 7761.0,
+      "pareto": true
+    },
+    "relative_cost_reduction_percent": 21.0,
+    "qubit_savings": -800,
+    "runtime_speedup": 2.49,
+    "pareto_frontier_size": 22,
+    "total_evaluated_plans": 288,
+    "workload": "chemistry_femoco_6q"
+  }
+]

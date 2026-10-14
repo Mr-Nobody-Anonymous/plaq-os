@@ -1,0 +1,86 @@
+[
+  {
+    "algorithm_name": "Exhaustive Search",
+    "search_time_seconds": 0.0773,
+    "total_evaluations": 288,
+    "best_cost_score": 7761.0,
+    "best_physical_qubits": 5836,
+    "best_runtime_seconds": 0.00385,
+    "best_code_distance": 15,
+    "optimality_gap_percent": 0.0,
+    "pareto_frontier_count": 22,
+    "pareto_coverage_percent": 100.0,
+    "best_plan": {
+      "opt_level": 3,
+      "routing": "basic",
+      "layout": "dense",
+      "factories": 2,
+      "qec_strategy": "minimal_safe",
+      "decoder": "streaming_asic",
+      "code_family": "surface_code_rotated"
+    }
+  },
+  {
+    "algorithm_name": "Greedy Optimization",
+    "search_time_seconds": 0.2191,
+    "total_evaluations": 14,
+    "best_cost_score": 7831.0,
+    "best_physical_qubits": 5836,
+    "best_runtime_seconds": 0.00399,
+    "best_code_distance": 15,
+    "optimality_gap_percent": 0.9,
+    "pareto_frontier_count": 6,
+    "pareto_coverage_percent": 0.0,
+    "best_plan": {
+      "opt_level": 2,
+      "routing": "basic",
+      "layout": "trivial",
+      "factories": 2,
+      "qec_strategy": "minimal_safe",
+      "decoder": "streaming_asic",
+      "code_family": "surface_code_rotated"
+    }
+  },
+  {
+    "algorithm_name": "Simulated Annealing",
+    "search_time_seconds": 0.3038,
+    "total_evaluations": 36,
+    "best_cost_score": 7936.0,
+    "best_physical_qubits": 5836,
+    "best_runtime_seconds": 0.0042,
+    "best_code_distance": 15,
+    "optimality_gap_percent": 2.25,
+    "pareto_frontier_count": 26,
+    "pareto_coverage_percent": 0.0,
+    "best_plan": {
+      "opt_level": 1,
+      "routing": "basic",
+      "layout": "dense",
+      "factories": 2,
+      "qec_strategy": "minimal_safe",
+      "decoder": "embedded_fpga",
+      "code_family": "surface_code_rotated"
+    }
+  },
+  {
+    "algorithm_name": "Random Search (N=35)",
+    "search_time_seconds": 0.0052,
+    "total_evaluations": 35,
+    "best_cost_score": 7866.0,
+    "best_physical_qubits": 5836,
+    "best_runtime_seconds": 0.00406,
+    "best_code_distance": 15,
+    "optimality_gap_percent": 1.35,
+    "pareto_frontier_count": 9,
+    "pareto_coverage_percent": 33.33,
+    "best_plan": {
+      "opt_level": 2,
+      "routing": "lookahead",
+      "layout": "dense",
+      "factories": 2,
+      "qec_strategy": "minimal_safe",
+      "decoder": "streaming_asic",
+      "code_family": "surface_code_rotated"
+    }
+  }
+]

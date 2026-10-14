@@ -1,0 +1,47 @@
+[
+  {
+    "configuration_name": "Full Joint Optimizer",
+    "disabled_component": "None (All dimensions active)",
+    "physical_qubits": 5836,
+    "runtime_seconds": 0.00385,
+    "code_distance": 15,
+    "total_cost_score": 7761.0,
+    "cost_penalty_percent": 0.0
+  },
+  {
+    "configuration_name": "No Decoder Co-Design",
+    "disabled_component": "Disabled: Streaming ASIC/FPGA decoder (forced CPU)",
+    "physical_qubits": 5836,
+    "runtime_seconds": 0.00462,
+    "code_distance": 15,
+    "total_cost_score": 8146.0,
+    "cost_penalty_percent": 4.96
+  },
+  {
+    "configuration_name": "No Factory Scaling",
+    "disabled_component": "Disabled: Parallel magic state factories (forced f=1)",
+    "physical_qubits": 5036,
+    "runtime_seconds": 0.0077,
+    "code_distance": 17,
+    "total_cost_score": 8886.0,
+    "cost_penalty_percent": 14.5
+  },
+  {
+    "configuration_name": "No Routing Optimization",
+    "disabled_component": "Disabled: Sabre/Lookahead layout passes (forced basic)",
+    "physical_qubits": 5836,
+    "runtime_seconds": 0.00385,
+    "code_distance": 15,
+    "total_cost_score": 7761.0,
+    "cost_penalty_percent": 0.0
+  },
+  {
+    "configuration_name": "No QEC Distance Optimization",
+    "disabled_component": "Disabled: Minimal distance solver (forced conservative d+2)",
+    "physical_qubits": 6604,
+    "runtime_seconds": 0.00385,
+    "code_distance": 17,
+    "total_cost_score": 8529.0,
+    "cost_penalty_percent": 9.9
+  }
+]

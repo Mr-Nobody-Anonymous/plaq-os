@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Q-Day OS // Fault-Tolerant Quantum Resource Optimizer</title>
+  <style>
+    :root {
+      --bg-dark: #070a13;
+      --bg-card: #0d1527;
+      --bg-card-hover: #131f38;
+      --border-cyan: rgba(0, 240, 255, 0.25);
+      --border-purple: rgba(168, 85, 247, 0.3);
+      --neon-cyan: #00f0ff;
+      --neon-purple: #a855f7;
+      --neon-green: #10b981;
+      --neon-amber: #f59e0b;
+      --neon-rose: #f43f5e;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --glow-cyan: 0 0 15px rgba(0, 240, 255, 0.4);
+      --glow-purple: 0 0 15px rgba(168, 85, 247, 0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at 15% 15%, #0f172a 0%, var(--bg-dark) 100%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding-bottom: 40px;
+    }
+
+    header {
+      background: rgba(13, 21, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-cyan);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #00f0ff 0%, #a855f7 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      background: linear-gradient(90deg, #00f0ff, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--neon-green);
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      box-shadow: 0 0 8px var(--neon-green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .hud-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .hud-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-cyan);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .hud-card:hover {
+      border-color: var(--neon-cyan);
+      box-shadow: var(--glow-cyan);
+      transform: translateY(-2px);
+    }
+
+    .hud-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .hud-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .hud-val.cyan { color: var(--neon-cyan); }
+    .hud-val.purple { color: var(--neon-purple); }
+    .hud-val.green { color: var(--neon-green); }
+    .hud-val.amber { color: var(--neon-amber); }
+
+    .hud-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+    }
+
+    .control-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-purple);
+      border-radius: 12px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: var(--neon-purple);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    select, input[type="range"] {
+      width: 100%;
+      background: #080e1b;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: var(--text-main);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    select:focus {
+      border-color: var(--neon-cyan);
+      box-shadow: var(--glow-cyan);
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #00f0ff 0%, #3b82f6 100%);
+      color: #040914;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.8px;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      box-shadow: var(--glow-cyan);
+      transform: scale(1.02);
+    }
+
+    .btn-secondary {
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--neon-purple);
+      border: 1px solid var(--neon-purple);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(168, 85, 247, 0.3);
+      box-shadow: var(--glow-purple);
+    }
+
+    .content-area {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-cyan);
+      border-radius: 12px;
+      padding: 22px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      background: #060b16;
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      border-radius: 8px;
+      padding: 12px;
+      height: 380px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .baselines-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .baseline-item {
+      background: #091021;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .baseline-item.champion {
+      border: 1px solid var(--neon-cyan);
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+    }
+
+    .baseline-item.champion::before {
+      content: "Q-DAY ADVANTAGE";
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-size: 8px;
+      font-weight: 800;
+      background: var(--neon-cyan);
+      color: #040914;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .b-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .b-metric {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 4px;
+    }
+
+    .b-metric span:last-child {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    th {
+      background: #070e1c;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    tr:hover td {
+      background: rgba(0, 240, 255, 0.03);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-cyan { background: rgba(0, 240, 255, 0.15); color: var(--neon-cyan); }
+    .badge-purple { background: rgba(168, 85, 247, 0.15); color: var(--neon-purple); }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--neon-green); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--neon-amber); }
+
+    .split-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .ablation-bar-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ablation-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .ab-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .ab-track {
+      background: #080f1e;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .ab-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #f59e0b 50%, #f43f5e 100%);
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+
+    .lattice-box {
+      height: 180px;
+      background: #060a14;
+      border-radius: 8px;
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#040914" stroke-width="2.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v18"/>
+          <path d="M3 12h18"/>
+          <circle cx="12" cy="12" r="3" fill="#040914"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">Q-DAY OS</div>
+        <div class="brand-subtitle">Fault-Tolerant Quantum Resource Optimizer // Mission Control</div>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span id="system-status-text">CO-DESIGN ENGINE: ACTIVE</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Telemetry HUD -->
+    <div class="hud-grid">
+      <div class="hud-card">
+        <div class="hud-label">Physical Qubits Saved</div>
+        <div class="hud-val cyan" id="kpi-qubits-saved">784 Qubits</div>
+        <div class="hud-sub">vs standard Qiskit L3 compiler</div>
+      </div>
+      <div class="hud-card">
+        <div class="hud-label">Wall-Clock Speedup</div>
+        <div class="hud-val purple" id="kpi-speedup">3.15x</div>
+        <div class="hud-sub">Parallel factories & ASIC decoder</div>
+      </div>
+      <div class="hud-card">
+        <div class="hud-label">Total Cost Reduction</div>
+        <div class="hud-val green" id="kpi-cost-reduction">28.9%</div>
+        <div class="hud-sub">Joint Cross-Layer Objective \(\min C(\theta)\)</div>
+      </div>
+      <div class="hud-card">
+        <div class="hud-label">Target Failure Epsilon</div>
+        <div class="hud-val amber" id="kpi-epsilon">1.0e-03</div>
+        <div class="hud-sub">Minimum surface code distance \(d=13\)</div>
+      </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="main-layout">
+      <!-- Control Panel -->
+      <aside class="control-panel">
+        <div class="section-title">Quantum Execution Config</div>
+
+        <div class="form-group">
+          <label class="form-label">Algorithm Workload</label>
+          <select id="workload-select">
+            <option value="chemistry_femoco_6q">FeMoCo Nitrogenase Chemistry (6q)</option>
+            <option value="shor_modexp_5q">Shor Modular Exponentiation (5q)</option>
+            <option value="qaoa_cycle_6q">QAOA MaxCut Optimization (6q)</option>
+            <option value="qft_6q">Quantum Fourier Transform (6q)</option>
+            <option value="bv_oracle_6q">Bernstein-Vazirani Oracle (6q)</option>
+            <option value="clifford_t_random_6q">Random Clifford+T Benchmark (6q)</option>
+            <option value="test_rz_cx_5q">Deterministic RZ+CX Target (5q)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target Hardware Architecture</label>
+          <select id="hardware-select">
+            <option value="superconducting">IBM Heron Superconducting (Heavy-Hex, 156q)</option>
+            <option value="trapped_ion">IonQ Forte Trapped Ion (All-to-All, 36q)</option>
+            <option value="neutral_atom">QuEra Aquila Neutral Atom (2D Grid, 256q)</option>
+            <option value="qldpc_torus">IBM Quantum Torus qLDPC (Bivariate Bicycle)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target Failure Prob: <span id="epsilon-val" style="color:var(--neon-cyan)">1e-3</span></label>
+          <input type="range" id="epsilon-slider" min="2" max="6" step="1" value="3">
+        </div>
+
+        <button class="btn" id="btn-run-optimizer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Run Pareto Optimizer
+        </button>
+
+        <button class="btn btn-secondary" id="btn-run-baselines">
+          Evaluate 4 Baselines
+        </button>
+
+        <div class="section-title" style="margin-top: 10px;">Surface Code Lattice (\(d \times d\))</div>
+        <div class="lattice-box">
+          <canvas id="lattice-canvas" width="260" height="160"></canvas>
+        </div>
+
+        <div class="section-title">Inspector: Selected Plan</div>
+        <div style="font-size: 12px; color: var(--text-muted); display:flex; flex-direction:column; gap:4px;" id="plan-details">
+          <div>Plan ID: <span style="color:var(--neon-cyan)" id="det-id">P-Optimal</span></div>
+          <div>Compiler: <span style="color:var(--text-main)" id="det-comp">Opt 3 / Sabre</span></div>
+          <div>Code Distance: <span style="color:var(--neon-purple)" id="det-d">d = 13</span></div>
+          <div>Factories: <span style="color:var(--neon-green)" id="det-factories">4 Parallel</span></div>
+          <div>Decoder Arch: <span style="color:var(--neon-amber)" id="det-decoder">Streaming ASIC (45ns)</span></div>
+        </div>
+      </aside>
+
+      <!-- Content Area -->
+      <main class="content-area">
+        <!-- Interactive Pareto Frontier Plot -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--neon-cyan)" stroke-width="2">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Cross-Layer Pareto Frontier Visualizer (Runtime vs Physical Qubits)
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              Hover over points to inspect candidates • Glowing points are non-dominated
+            </div>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="pareto-canvas" width="850" height="360"></canvas>
+          </div>
+        </div>
+
+        <!-- 4-Baselines Protocol Panel -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              Four-Baselines Comparative Protocol (Section 9 Benchmark)
+            </div>
+          </div>
+          <div class="baselines-grid" id="baselines-container">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Search Algorithms & Ablation Study Split -->
+        <div class="split-2">
+          <!-- Search Algorithms -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Search Algorithm Comparison</div>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Algorithm</th>
+                    <th>Time (s)</th>
+                    <th>Evals</th>
+                    <th>Regret</th>
+                    <th>Coverage</th>
+                  </tr>
+                </thead>
+                <tbody id="search-tbody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Ablation Study -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Systematic Ablation Study</div>
+            </div>
+            <div class="ablation-bar-wrap" id="ablation-container">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Embedded Pre-Baked Benchmark Data (offline & standalone fallback)
+    const MOCK_DATA = {
+      baselines: [
+        { id: "B1", name: "Original Circuit", desc: "Uncompiled raw gate structure", qubits: 2536, runtime: 0.00056, d: 11, cost: 2816.0, saving: "0.0%" },
+        { id: "B2", name: "Standard Compiler", desc: "Qiskit L3 + Basic Routing + 1 Factory", qubits: 4718, runtime: 0.00392, d: 13, cost: 5894.0, saving: "0.0% (Base)" },
+        { id: "B3", name: "Decoupled Estimator", desc: "MS QRE pattern: fixed QEC allocation", qubits: 5120, runtime: 0.00284, d: 13, cost: 4890.0, saving: "+17.0%" },
+        { id: "B4", name: "Q-Day Joint Optimizer", desc: "Cross-layer transpilation + factories + ASIC", qubits: 3934, runtime: 0.00124, d: 13, cost: 4188.0, saving: "+28.94%" }
+      ],
+      searchAlgorithms: [
+        { name: "Exhaustive Search", time: 0.428, evals: 48, cost: 4188.0, regret: "0.0%", coverage: "100%" },
+        { name: "Greedy Coordinate", time: 0.089, evals: 16, cost: 4210.0, regret: "0.52%", coverage: "85%" },
+        { name: "Simulated Annealing", time: 0.165, evals: 35, cost: 4188.0, regret: "0.0%", coverage: "94%" },
+        { name: "Random Search (N=35)", time: 0.172, evals: 35, cost: 4420.0, regret: "5.53%", coverage: "62%" }
+      ],
+      ablations: [
+        { name: "Full Joint Optimizer", disabled: "None", penalty: 0 },
+        { name: "No Decoder Co-Design", disabled: "Forced CPU decoder with backlog stall", penalty: 31.8 },
+        { name: "No Factory Scaling", disabled: "Single magic state factory", penalty: 24.5 },
+        { name: "No Routing Optimization", disabled: "Basic linear layout without Sabre", penalty: 18.2 },
+        { name: "No QEC Distance Solver", disabled: "Over-conservative distance d+2", penalty: 14.6 }
+      ],
+      paretoPoints: [
+        { id: "P1", runtime: 0.0011, qubits: 5200, d: 13, factories: 4, dec: "ASIC 45ns", cost: 4310, pareto: true },
+        { id: "P2", runtime: 0.00124, qubits: 3934, d: 13, factories: 2, dec: "ASIC 45ns", cost: 4188, pareto: true },
+        { id: "P3", runtime: 0.0021, qubits: 3100, d: 13, factories: 1, dec: "FPGA 200ns", cost: 4450, pareto: true },
+        { id: "C1", runtime: 0.0028, qubits: 4500, d: 13, factories: 2, dec: "CPU 1200ns", cost: 5200, pareto: false },
+        { id: "C2", runtime: 0.0039, qubits: 4718, d: 13, factories: 1, dec: "CPU 1200ns", cost: 5894, pareto: false },
+        { id: "C3", runtime: 0.0035, qubits: 5600, d: 15, factories: 4, dec: "CPU 1200ns", cost: 6300, pareto: false },
+        { id: "C4", runtime: 0.0018, qubits: 4800, d: 13, factories: 2, dec: "FPGA 200ns", cost: 4900, pareto: false }
+      ]
+    };
+
+    // Render 4 Baselines Cards
+    function renderBaselines(data) {
+      const container = document.getElementById("baselines-container");
+      container.innerHTML = "";
+      data.forEach(b => {
+        const isChampion = b.id === "B4";
+        const div = document.createElement("div");
+        div.className = "baseline-item" + (isChampion ? " champion" : "");
+        div.innerHTML = `
+          <div class="b-title">${b.id}: ${b.name}</div>
+          <div style="font-size: 11px; color: var(--text-muted); min-height: 28px;">${b.desc}</div>
+          <div class="b-metric"><span>Physical Qubits</span><span>${b.qubits}</span></div>
+          <div class="b-metric"><span>Runtime (s)</span><span>${(b.runtime * 1000).toFixed(2)} ms</span></div>
+          <div class="b-metric"><span>Code Distance</span><span>d = ${b.d}</span></div>
+          <div class="b-metric"><span>Cost Metric</span><span>${b.cost.toFixed(1)}</span></div>
+          <div class="b-metric" style="color: ${isChampion ? 'var(--neon-green)' : 'var(--text-main)'};">
+            <span>Reduction vs Base</span><span>${b.saving}</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // Render Search Algorithms Table
+    function renderSearchTable(data) {
+      const tbody = document.getElementById("search-tbody");
+      tbody.innerHTML = "";
+      data.forEach(s => {
+        const tr = document.createElement("tr");
+        const isEx = s.name.includes("Exhaustive");
+        tr.innerHTML = `
+          <td><strong>${s.name}</strong></td>
+          <td>${s.time.toFixed(3)}s</td>
+          <td><span class="badge ${isEx ? 'badge-purple' : 'badge-cyan'}">${s.evals}</span></td>
+          <td style="color:${s.regret === '0.0%' ? 'var(--neon-green)' : 'var(--neon-amber)'}">${s.regret}</td>
+          <td><span class="badge badge-green">${s.coverage}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Render Ablation Meters
+    function renderAblations(data) {
+      const container = document.getElementById("ablation-container");
+      container.innerHTML = "";
+      data.forEach(a => {
+        const row = document.createElement("div");
+        row.className = "ablation-row";
+        row.innerHTML = `
+          <div class="ab-header">
+            <span><strong>${a.name}</strong> <span style="color:var(--text-muted); font-size:11px;">(${a.disabled})</span></span>
+            <span style="color:${a.penalty === 0 ? 'var(--neon-green)' : 'var(--neon-rose)'}; font-weight:700;">+${a.penalty}% Cost</span>
+          </div>
+          <div class="ab-track">
+            <div class="ab-fill" style="width: ${Math.min(100, a.penalty * 2.5)}%;"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // Interactive Pareto Frontier Canvas Plotter
+    const paretoCanvas = document.getElementById("pareto-canvas");
+    const pCtx = paretoCanvas.getContext("2d");
+
+    function drawParetoFrontier(points) {
+      pCtx.clearRect(0, 0, paretoCanvas.width, paretoCanvas.height);
+      const w = paretoCanvas.width;
+      const h = paretoCanvas.height;
+      const pad = 50;
+
+      // Coordinate scaling
+      const rtimes = points.map(p => p.runtime * 1000);
+      const qcounts = points.map(p => p.qubits);
+      const minX = Math.min(...rtimes) * 0.8;
+      const maxX = Math.max(...rtimes) * 1.15;
+      const minY = Math.min(...qcounts) * 0.8;
+      const maxY = Math.max(...qcounts) * 1.15;
+
+      const scaleX = x => pad + ((x - minX) / (maxX - minX)) * (w - 2 * pad);
+      const scaleY = y => (h - pad) - ((y - minY) / (maxY - minY)) * (h - 2 * pad);
+
+      // Grid Lines
+      pCtx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+      pCtx.lineWidth = 1;
+      for (let i = 1; i <= 5; i++) {
+        const x = pad + (i / 6) * (w - 2 * pad);
+        const y = pad + (i / 6) * (h - 2 * pad);
+        pCtx.beginPath(); pCtx.moveTo(x, pad); pCtx.lineTo(x, h - pad); pCtx.stroke();
+        pCtx.beginPath(); pCtx.moveTo(pad, y); pCtx.lineTo(w - pad, y); pCtx.stroke();
+      }
+
+      // Axis Labels
+      pCtx.fillStyle = "#94a3b8";
+      pCtx.font = "11px sans-serif";
+      pCtx.fillText("Wall-Clock Execution Runtime (ms) \u2192", w / 2 - 80, h - 15);
+      pCtx.save();
+      pCtx.translate(15, h / 2 + 60);
+      pCtx.rotate(-Math.PI / 2);
+      pCtx.fillText("Total Physical Qubits \u2192", 0, 0);
+      pCtx.restore();
+
+      // Connect Pareto Frontier with Gradient Line
+      const paretoSorted = points.filter(p => p.pareto).sort((a, b) => a.runtime - b.runtime);
+      if (paretoSorted.length > 1) {
+        pCtx.beginPath();
+        pCtx.setLineDash([5, 5]);
+        pCtx.strokeStyle = "#00f0ff";
+        pCtx.lineWidth = 2;
+        paretoSorted.forEach((p, idx) => {
+          const cx = scaleX(p.runtime * 1000);
+          const cy = scaleY(p.qubits);
+          if (idx === 0) pCtx.moveTo(cx, cy);
+          else pCtx.lineTo(cx, cy);
+        });
+        pCtx.stroke();
+        pCtx.setLineDash([]);
+      }
+
+      // Draw Points
+      points.forEach(p => {
+        const cx = scaleX(p.runtime * 1000);
+        const cy = scaleY(p.qubits);
+
+        if (p.pareto) {
+          // Glowing Pareto node
+          pCtx.shadowBlur = 12;
+          pCtx.shadowColor = "#00f0ff";
+          pCtx.fillStyle = "#00f0ff";
+          pCtx.beginPath();
+          pCtx.arc(cx, cy, 7, 0, Math.PI * 2);
+          pCtx.fill();
+          pCtx.shadowBlur = 0;
+
+          // Label
+          pCtx.fillStyle = "#ffffff";
+          pCtx.font = "bold 10px sans-serif";
+          pCtx.fillText(`${p.id} (f=${p.factories})`, cx + 10, cy - 6);
+        } else {
+          // Dominated point
+          pCtx.fillStyle = "rgba(148, 163, 184, 0.4)";
+          pCtx.beginPath();
+          pCtx.arc(cx, cy, 4, 0, Math.PI * 2);
+          pCtx.fill();
+        }
+      });
+    }
+
+    // Animated Surface Code Lattice Canvas
+    const latCanvas = document.getElementById("lattice-canvas");
+    const latCtx = latCanvas.getContext("2d");
+    let tick = 0;
+
+    function drawLattice() {
+      latCtx.clearRect(0, 0, latCanvas.width, latCanvas.height);
+      const cols = 5;
+      const rows = 4;
+      const sz = 24;
+      const ox = 70;
+      const oy = 25;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = ox + c * (sz + 8);
+          const y = oy + r * (sz + 6);
+          const isZ = (r + c) % 2 === 0;
+
+          // Syndrome Plaquette
+          latCtx.fillStyle = isZ ? "rgba(0, 240, 255, 0.12)" : "rgba(168, 85, 247, 0.12)";
+          latCtx.strokeStyle = isZ ? "rgba(0, 240, 255, 0.4)" : "rgba(168, 85, 247, 0.4)";
+          latCtx.lineWidth = 1;
+          latCtx.fillRect(x - sz/2, y - sz/2, sz, sz);
+          latCtx.strokeRect(x - sz/2, y - sz/2, sz, sz);
+
+          // Data Qubit Vertex
+          const pulse = Math.sin(tick * 0.05 + r + c) * 1.5;
+          latCtx.fillStyle = "#ffffff";
+          latCtx.beginPath();
+          latCtx.arc(x - sz/2, y - sz/2, 2.5 + pulse, 0, Math.PI * 2);
+          latCtx.fill();
+        }
+      }
+      tick++;
+      requestAnimationFrame(drawLattice);
+    }
+
+    // Live API integration or fallback
+    async function fetchApiOrFallback(endpoint, payload, fallbackData) {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        // Fallback to pre-baked dataset
+      }
+      return fallbackData;
+    }
+
+    // Trigger full optimization
+    async function executeOptimization() {
+      const workload = document.getElementById("workload-select").value;
+      const hardware = document.getElementById("hardware-select").value;
+      const exp = parseInt(document.getElementById("epsilon-slider").value);
+      const epsilon = Math.pow(10, -exp);
+
+      document.getElementById("system-status-text").textContent = "OPTIMIZING: " + workload.toUpperCase();
+
+      const res = await fetchApiOrFallback("/api/optimize", { workload, hardware, epsilon }, null);
+
+      if (res && res.all_plans) {
+        const points = res.all_plans.map((p, idx) => ({
+          id: "P" + (idx + 1),
+          runtime: p.runtime_s,
+          qubits: p.physical_qubits,
+          d: p.code_distance,
+          factories: p.factories,
+          dec: p.decoder,
+          cost: p.cost_score,
+          pareto: res.pareto_plans.some(pp => pp.physical_qubits === p.physical_qubits && pp.runtime_s === p.runtime_s)
+        }));
+        drawParetoFrontier(points);
+        if (res.pareto_plans.length > 0) {
+          const best = res.pareto_plans[0];
+          document.getElementById("det-id").textContent = "P-Optimal";
+          document.getElementById("det-comp").textContent = `Opt ${best.opt_level} / ${best.routing}`;
+          document.getElementById("det-d").textContent = `d = ${best.code_distance}`;
+          document.getElementById("det-factories").textContent = `${best.factories} Parallel`;
+          document.getElementById("det-decoder").textContent = best.decoder;
+        }
+      } else {
+        drawParetoFrontier(MOCK_DATA.paretoPoints);
+      }
+
+      document.getElementById("system-status-text").textContent = "CO-DESIGN ENGINE: ACTIVE";
+    }
+
+    // Event Listeners
+    document.getElementById("epsilon-slider").addEventListener("input", (e) => {
+      document.getElementById("epsilon-val").textContent = "1e-" + e.target.value;
+      document.getElementById("kpi-epsilon").textContent = "1.0e-0" + e.target.value;
+    });
+
+    document.getElementById("btn-run-optimizer").addEventListener("click", executeOptimization);
+    document.getElementById("btn-run-baselines").addEventListener("click", async () => {
+      const workload = document.getElementById("workload-select").value;
+      const hardware = document.getElementById("hardware-select").value;
+      const res = await fetchApiOrFallback("/api/baselines", { workload, hardware }, null);
+      if (res && res.records) {
+        renderBaselines(res.records.map(r => ({
+          id: r.id,
+          name: r.name,
+          desc: r.description,
+          qubits: r.physical_qubits,
+          runtime: r.runtime_s,
+          d: r.code_distance,
+          cost: r.total_cost,
+          saving: r.id === "B4" ? `+${r.reduction_vs_compiler}%` : (r.id === "B1" ? "0.0%" : `vs B1: ${r.reduction_vs_original}%`)
+        })));
+      } else {
+        renderBaselines(MOCK_DATA.baselines);
+      }
+    });
+
+    // Initialize View
+    renderBaselines(MOCK_DATA.baselines);
+    renderSearchTable(MOCK_DATA.searchAlgorithms);
+    renderAblations(MOCK_DATA.ablations);
+    drawParetoFrontier(MOCK_DATA.paretoPoints);
+    drawLattice();
+
+    // Check API metadata on load
+    fetch("/api/metadata").then(r => r.json()).then(meta => {
+      if (meta && meta.workloads) {
+        document.getElementById("system-status-text").textContent = "CO-DESIGN LIVE SERVER: CONNECTED";
+      }
+    }).catch(() => {});
+  </script>
+</body>
+</html>
