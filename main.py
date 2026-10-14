@@ -87,7 +87,7 @@ def export_pareto_plot(
                 fontweight="medium",
             )
 
-    ax.set_title(f"Q-Day OS Pareto Trade-off: {workload_name}", fontsize=13, fontweight="bold", pad=12)
+    ax.set_title(f"Plaq OS Pareto Trade-off: {workload_name}", fontsize=13, fontweight="bold", pad=12)
     ax.set_xlabel("Wall-Clock Execution Runtime (ms)", fontsize=11)
     ax.set_ylabel("Total Physical Qubits ($Q_{data} + Q_{factories}$)", fontsize=11)
     ax.grid(True, linestyle=":", alpha=0.6)
@@ -109,7 +109,7 @@ def run_optimization_action(args: argparse.Namespace, cache: CompilationCache | 
         cache = CompilationCache()
 
     print(f"\n=======================================================", flush=True)
-    print(f"  Q-Day OS: Joint Cross-Layer Optimization", flush=True)
+    print(f"  Plaq OS: Joint Cross-Layer Optimization", flush=True)
     print(f"  Workload: {w_name} ({circuit.num_qubits} qubits)", flush=True)
     print(f"  Hardware: {hardware.name}", flush=True)
     print(f"  Target Reliability Budget: epsilon = {args.epsilon}", flush=True)

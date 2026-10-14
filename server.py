@@ -1,5 +1,5 @@
 """
-Q-Day OS Futuristic Quantum Web Server & REST API
+Plaq OS Futuristic Quantum Web Server & REST API
 
 Provides a local HTTP server and REST endpoints for the interactive UI:
 - /api/optimize: Dynamic Pareto optimization
@@ -192,13 +192,13 @@ def start_quantum_server(port: int = 8500) -> None:
     os.makedirs(UI_DIR, exist_ok=True)
     server = HTTPServer(("127.0.0.1", port), QuantumApiHandler)
     print(f"\n=======================================================", flush=True)
-    print(f"  Q-Day OS Futuristic Cyber-Quantum UI Server Active!", flush=True)
+    print(f"  Plaq OS Futuristic Cyber-Quantum UI Server Active!", flush=True)
     print(f"  URL: http://127.0.0.1:{port}", flush=True)
     print(f"=======================================================\n", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping Q-Day OS Server...", flush=True)
+        print("\nStopping Plaq OS Server...", flush=True)
         server.server_close()
 
 

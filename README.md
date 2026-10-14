@@ -1,11 +1,11 @@
-# Q-Day OS
+# Plaq OS
 
 **Fault-Tolerant Quantum Execution Planner & Cross-Layer Resource Optimizer**
 
-Q-Day OS is an enterprise and research operating platform designed to answer the fundamental question of quantum scaling:
+Plaq OS is an enterprise and research operating platform designed to answer the fundamental question of quantum scaling:
 > *How can we obtain the same reliable quantum computation using fewer physical resources, less time, or both?*
 
-Instead of treating circuit compilation, quantum error correction (QEC) allocation, and classical decoding as isolated silos, Q-Day OS searches across the entire co-design space to find **Pareto-optimal execution plans** balancing physical qubits, wall-clock execution time, and reliability constraints.
+Instead of treating circuit compilation, quantum error correction (QEC) allocation, and classical decoding as isolated silos, Plaq OS searches across the entire co-design space to find **Pareto-optimal execution plans** balancing physical qubits, wall-clock execution time, and reliability constraints.
 
 ---
 
@@ -14,7 +14,7 @@ Instead of treating circuit compilation, quantum error correction (QEC) allocati
 ### 1. Installation
 Navigate to this directory in PowerShell:
 ```powershell
-cd C:\Users\hp\Desktop\q-day-os
+cd C:\Users\hp\Desktop\plaq-os
 python -m pip install -r requirements.txt
 ```
 
@@ -32,8 +32,8 @@ python main.py --run-all
 This executes:
 1. **Transpilation Baselines**: Benchmarks 8 workload families across 4 Qiskit optimization levels and exports to `results/benchmark_results.csv`.
 2. **Joint Cross-Layer Optimization**: Discovers the multi-objective Pareto frontier over compiler levels, routing algorithms, magic-state factory counts, and classical decoder architectures.
-3. **Hypothesis Testing**: Directly compares Sequential Compilation against Q-Day OS Joint Optimization.
-4. **Four-Baselines Protocol**: Formally evaluates Baseline 1 (Original), Baseline 2 (Standard Compiler L3), Baseline 3 (Decoupled Estimator / MS QRE style), and Baseline 4 (Q-Day Joint Optimizer).
+3. **Hypothesis Testing**: Directly compares Sequential Compilation against Plaq OS Joint Optimization.
+4. **Four-Baselines Protocol**: Formally evaluates Baseline 1 (Original), Baseline 2 (Standard Compiler L3), Baseline 3 (Decoupled Estimator / MS QRE style), and Baseline 4 (Plaq OS Joint Optimizer).
 5. **Systematic Ablation Study**: Quantifies cost penalties when decoder co-design, factory scaling, routing optimization, or QEC distance solvers are isolated.
 6. **Search Algorithms Comparison**: Benchmarks Exhaustive Ground Truth, Greedy Coordinate Descent, Simulated Annealing, and Random Search.
 7. **Pareto Frontier Visualization**: Generates publication-ready trade-off plots in `results/pareto_frontier.png`.
@@ -74,8 +74,8 @@ python -m pytest
 ## Project Structure
 
 ```
-q-day-os/
-├── q-day os.md              # Master research thesis, math equations, and startup plan
+plaq-os/
+├── plaq-os.md               # Master research thesis, math equations, and startup plan
 ├── circuits.py              # Workloads (QAOA, QFT, Bernstein-Vazirani, Clifford+T, Chemistry, Shor)
 ├── hardware.py              # Target hardware models (Superconducting, Trapped Ion, Neutral Atom, qLDPC)
 ├── cost_model.py            # Surface code scaling, 15-to-1 factories, decoder latency & cascades
@@ -110,7 +110,7 @@ q-day-os/
 
 ## Research Foundations & Mathematics
 
-See [`q-day os.md`](./q-day%20os.md) for the complete theoretical derivation, including:
+See [`plaq-os.md`](./plaq-os.md) for the complete theoretical derivation, including:
 - Rotated surface code logical error rate: $P_L(d, p) \approx c \left(\frac{p}{p_{th}}\right)^{(d+1)/2}$
 - Quantum LDPC bivariate bicycle constant-rate scaling
 - 15-to-1 magic-state distillation footprint and multi-level cascade formulas

@@ -1,11 +1,11 @@
-# Q-Day OS: The Fault-Tolerant Quantum Execution Planner & Resource Optimizer
+# Plaq OS: The Fault-Tolerant Quantum Execution Planner & Resource Optimizer
 ## Master Research, Engineering, and Venture Architecture
 
 > **Executive Vision**: Build the definitive operating system for Fault-Tolerant Quantum Computing (FTQC)—software that ingests arbitrary quantum algorithms, models physical-to-logical noise dynamics and hardware geometries, and discovers Pareto-optimal, cross-layer execution plans that minimize physical qubits, wall-clock execution time, and classical decoding bottlenecks.
 
 ---
 
-## 1. The Core Scientific Hypothesis & The "Q-Day" Paradigm Shift
+## 1. The Core Scientific Hypothesis & The Plaq OS Paradigm Shift
 
 ### 1.1 The Transition from NISQ to FTQC
 In Noisy Intermediate-Scale Quantum (NISQ) computing, optimization focused almost exclusively on minimizing raw 2-qubit gate counts to prevent decoherence before the circuit finishes. In Fault-Tolerant Quantum Computing (FTQC), however, physical qubits are bound together into **logical qubits** protected by Quantum Error-Correcting Codes (QECC), such as the Surface Code or Quantum Low-Density Parity-Check (qLDPC) codes.
@@ -23,7 +23,7 @@ This siloed approach frequently chooses sub-optimal plans:
 * A compiler pass optimizing purely for minimum 2-qubit CX gates may serialize operations, elongating logical circuit depth. This forces the memory idle qubits to endure more error-correction rounds, which increases the required code distance $d$, ultimately **multiplying total physical qubit demand by thousands**.
 * Conversely, a slightly wider circuit with higher 2-qubit gate parallelism can slash total surface code cycle counts, enabling a smaller code distance $d$, dramatically shrinking the required number of magic state factories, and avoiding decoder backlog.
 
-**The Q-Day Hypothesis**:
+**The Plaq OS Hypothesis**:
 > *Jointly optimizing circuit compilation, qubit routing, error-correcting code distance, magic state factory parallelization, and classical decoder latency yields strictly lower execution cost $C(A, \theta, H)$ than sequential optimization, under identical algorithm accuracy requirements ($\epsilon$) and hardware noise specifications.*
 
 ---
