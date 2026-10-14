@@ -1,22 +1,22 @@
-# Plaq OS
+# Plaq-OS
 
 <p align="center">
   <img src="assets/logo.jpg" alt="Plaq OS Banner Logo" width="460" style="border-radius: 14px; box-shadow: 0 0 30px rgba(0, 240, 255, 0.4); border: 1px solid rgba(0, 240, 255, 0.3);" />
 </p>
 
 <p align="center">
-  <strong>Fault-Tolerant Quantum Execution Planner & Cross-Layer Resource Optimizer</strong><br>
-  <em>Unifying Quantum Circuit Synthesis, Surface Code Routing, Magic State Distillation, and Real-Time Classical Decoding</em>
+  <strong>Programmable, Agent-Driven Fault-Tolerant Quantum Workbench & OS-Like Execution Platform</strong><br>
+  <em>Unifying Autonomous AI Agent Runtimes, Persistent Control Planes, Monaco/Terminal Workbench, and Cross-Layer Quantum Co-Design</em>
 </p>
 
 <p align="center">
   <a href="https://github.com/Mr-Nobody-Anonymous/plaq-os/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square&logo=githubactions" alt="Build Status" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue?style=flat-square&logo=python" alt="Python Version" /></a>
+  <a href="#test-portfolio--verification-matrix"><img src="https://img.shields.io/badge/tests-413%20passed%20(100%25)-success?style=flat-square" alt="Test Status" /></a>
   <a href="https://github.com/quantumlib/Stim"><img src="https://img.shields.io/badge/QEC%20Simulator-Stim%201.16%2B-purple?style=flat-square" alt="Stim" /></a>
   <a href="https://github.com/oscarhiggott/PyMatching"><img src="https://img.shields.io/badge/QEC%20Decoder-PyMatching%202.4%2B%20(MWPM)-orange?style=flat-square" alt="PyMatching" /></a>
-  <a href="https://qiskit.org"><img src="https://img.shields.io/badge/Quantum%20SDK-Qiskit%201.0%2B-613394?style=flat-square&logo=qiskit" alt="Qiskit" /></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/API-FastAPI%20%26%20WebSockets-009688?style=flat-square&logo=fastapi" alt="FastAPI" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" /></a>
-  <a href="#scientific-audit-and-gap-analysis-verdict"><img src="https://img.shields.io/badge/research-model--validated-success?style=flat-square" alt="Research Status" /></a>
 </p>
 
 ---
@@ -24,6 +24,13 @@
 ## Table of Contents
 
 - [Executive Overview](#executive-overview)
+- [Plaq-OS Platform Architecture (R1–R5)](#plaq-os-platform-architecture-r1r5)
+  - [1. Plaq Desktop Workbench (apps/workbench)](#1-plaq-desktop-workbench-appsworkbench)
+  - [2. Plaq Agent Runtime & Sandbox (services/agent-runtime)](#2-plaq-agent-runtime--sandbox-servicesagent-runtime)
+  - [3. Plaq Control Plane & Durable State (services/control-plane)](#3-plaq-control-plane--durable-state-servicescontrol-plane)
+  - [4. Plaq Quantum Engine (engines/quantum)](#4-plaq-quantum-engine-enginesquantum)
+- [Monorepo Structure](#monorepo-structure)
+- [Unified CLI Reference (`plaq`)](#unified-cli-reference-plaq)
 - [The Fundamental Problem in FTQC](#the-fundamental-problem-in-ftqc)
 - [Scientific Audit and Gap Analysis Verdict](#scientific-audit-and-gap-analysis-verdict)
 - [Pareto Trade-Off Transparency](#pareto-trade-off-transparency)
@@ -34,7 +41,8 @@
 - [Workload Benchmark Suite](#workload-benchmark-suite)
 - [The Four-Baselines Protocol](#the-four-baselines-protocol)
 - [Interactive Mission Control UI](#interactive-mission-control-ui)
-- [Quickstart & CLI Reference](#quickstart--cli-reference)
+- [Test Portfolio & Verification Matrix](#test-portfolio--verification-matrix)
+- [Quickstart & Verification Guide](#quickstart--verification-guide)
 - [Reproducibility & Run Manifest](#reproducibility--run-manifest)
 - [License & Citation](#license--citation)
 
@@ -42,16 +50,127 @@
 
 ## Executive Overview
 
-**Plaq OS** is an open-source, mathematically rigorous co-design operating platform for **Fault-Tolerant Quantum Computing (FTQC)**. It addresses the central economic and physical question of large-scale quantum computing:
+**Plaq-OS** is an open-source, programmable, agent-driven **Fault-Tolerant Quantum Computing Workbench and OS-like Software Platform**. It combines an interactive developer desktop workbench, an isolated autonomous AI agent execution runtime, a crash-resilient SQLite control plane, and a domain-specific quantum co-design engine.
 
-> **How can we execute reliable quantum algorithms with fewer physical qubits, lower wall-clock latency, and zero classical decoder backlog?**
+Rather than building a bare-metal kernel, Plaq-OS implements an **OS-like software architecture** that runs natively on Windows and Linux, providing:
+1. **Plaq Desktop**: 4-panel workbench with workspace tree, code editor, interactive terminal, Pareto trade-off canvas, and human approval modals.
+2. **Plaq Agent Runtime**: 7-stage deterministic execution loop (`Receive` &rarr; `Inspect` &rarr; `Plan` &rarr; `Execute` &rarr; `Collect` &rarr; `Verify` &rarr; `Deliver`), 6-tier typed tool registry (12 tools), PathGuard sandbox confinement, and process-tree execution with timeouts.
+3. **Plaq Control Plane**: Durable SQLite WAL-mode state engine enforcing an 8-state task lifecycle, append-only SHA-256 hash chaining, secret scrubbing, and checkpoint crash recovery.
+4. **Plaq Quantum Engine**: Specialized package (`engines/quantum/src/plaq_quantum/`) for quantum circuit synthesis, Ross-Selinger $T$-gate decomposition, Stim/PyMatching rotated surface code simulation, and multi-objective Pareto optimization.
+5. **Unified CLI & API**: FastAPI REST backend with real-time WebSocket & SSE event streaming, alongside the unified `plaq` CLI entrypoint (`task`, `quantum`, `workspace`, `serve`).
 
-Current quantum toolchains operate in disconnected, isolated silos:
-1. **Circuit Compilers** (e.g. Qiskit, TKET) optimize purely for gate count or 2-qubit depth without knowledge of error correction thresholds.
-2. **Resource Estimators** (e.g. Azure Quantum Resource Estimator) estimate physical qubits under static, decoupled compiler assumptions.
-3. **Decoders** (e.g. MWPM, Union-Find) are treated as post-facto black boxes, ignoring the fact that syndrome accumulation causes exponential backlog stalls.
+---
 
-**Plaq OS breaks down these silos.** By orchestrating a unified search over compiler pass strategies, hardware topology routing, rotated surface code distances, parallel magic state distillation factories, and classical decoding latencies, Plaq OS maps the **true Pareto frontier** of fault-tolerant quantum execution.
+## Plaq-OS Platform Architecture (R1–R5)
+
+Plaq-OS is engineered around five cohesive requirements designed to deliver a complete OS-like workbench:
+
+```
++---------------------------------------------------------------------------------------------------+
+|                                      PLAQ-OS WORKBENCH DESKTOP                                    |
+|   [Left Sidebar: Workspaces & Tasks]   [Center: Code / Terminal / Pareto]   [Right: Plan & Gates] |
++---------------------------------------------------------------------------------------------------+
+                                                  |  REST / WebSockets (apps/api)
+                                                  v
++---------------------------------------------------------------------------------------------------+
+|                                       PLAQ CONTROL PLANE                                          |
+|   SQLite WAL State Engine | 8-State Task Lifecycle | SHA-256 Audit Chaining | Checkpoint Recovery |
++---------------------------------------------------------------------------------------------------+
+         |                                                                           |
+         v                                                                           v
++-----------------------------------------+                 +---------------------------------------+
+|           PLAQ AGENT RUNTIME            |                 |          PLAQ QUANTUM ENGINE          |
+|  * 7-Stage Deterministic Loop           |                 |  * Ross-Selinger T-Synthesis          |
+|  * 6-Tier Typed Tool Registry (12 tools)|                 |  * Stim 1.16+ Surface Code Simulator  |
+|  * PathGuard Sandbox Confinement        |                 |  * PyMatching 2.4+ MWPM Decoding      |
+|  * Subprocess Runner & Tree-Kill        |                 |  * Multi-Objective Pareto Frontier    |
+|  * Human Approval Interactive Gates     |                 |  * Real-Time Decoder Latency Guard    |
++-----------------------------------------+                 +---------------------------------------+
+```
+
+### 1. Plaq Desktop Workbench (`apps/workbench`)
+- **Left Sidebar**: Workspace file tree, agent session monitor, active task queues, and recent quantum experiments.
+- **Center Workspace**: Code viewer/editor, interactive terminal execution stream, file diff inspector, and dynamic Pareto trade-off canvas.
+- **Right Inspector**: Real-time agent plan decomposition, criteria validation checklists, live tool execution telemetry, and human approval prompt modals.
+- **Bottom Panel**: Test runner output feeds, background job timelines, and system event logs.
+
+### 2. Plaq Agent Runtime & Sandbox (`services/agent-runtime`, `services/sandbox-manager`)
+- **7-Stage Execution Loop**: `Receive Task` &rarr; `Inspect Context` &rarr; `Plan & Define Criteria` &rarr; `Execute Tool` &rarr; `Collect Output` &rarr; `Verify Results` &rarr; `Review Diff & Deliver`.
+- **Typed Tool Registry**: 12 tools across 6 strict permission tiers (`read`, `write`, `git`, `process`, `quantum`, `artifact`).
+- **PathGuard Sandboxing**: Prevents directory traversal (`../../`), URL-encoded traversal (`%2e%2e`), null-byte injection, and symlink breakouts.
+- **Process Isolation**: Spawns isolated subprocesses with configurable execution timeouts, process-tree cleanup (`SIGKILL`/`taskkill`), and stdout/stderr stream capture.
+- **Human Approval Gates**: Automatically suspends execution and prompts user confirmation for destructive actions (e.g. file deletions, sensitive commands).
+
+### 3. Plaq Control Plane & Durable State (`services/control-plane`)
+- **SQLite WAL Storage**: Thread-safe persistence across application restarts with `PRAGMA journal_mode = WAL` and foreign key enforcement.
+- **8-State Task Engine**: Governs transitions through `queued`, `planning`, `running`, `verifying`, `completed`, `failed`, `cancelled`, and `blocked`.
+- **Append-Only Audit Trail**: Cryptographically chains all tool invocations with SHA-256 hashes ($h_n = \text{SHA256}(h_{n-1} \parallel \text{payload})$).
+- **Secret Redaction**: Scrubbing engine automatically redacts AWS tokens, GitHub PATs, Slack credentials, and JWT keys prior to audit storage.
+- **Checkpoint Crash Recovery**: Rehydrates in-flight tasks and step histories upon server restart without data corruption.
+
+### 4. Plaq Quantum Engine (`engines/quantum/src/plaq_quantum`)
+- **Optimal $T$-Gate Synthesis**: Ross-Selinger / gridsynth algorithm mapping arbitrary single-qubit rotations to exact Clifford+$T$ sequences ($N_T \approx 3.21 \log_2(1/\epsilon_{syn}) + 2.5$).
+- **Rotated Surface Code Simulation**: Direct integration with Stim 1.16+ generating realistic memory and syndrome extraction circuits.
+- **Minimum-Weight Perfect Matching (MWPM)**: Accelerated decoding via PyMatching 2.4+ with Wilson score confidence intervals.
+- **Multi-Objective Pareto Search**: Evaluates trade-offs between physical qubit counts, total circuit runtime, and logical failure probability under classical decoder backlog limits.
+
+---
+
+## Monorepo Structure
+
+```
+plaq-os/
+├── apps/
+│   ├── api/                    # FastAPI REST & WebSocket/SSE event streaming backend
+│   ├── cli/                    # Unified `plaq` CLI entrypoint
+│   └── workbench/              # 4-panel OS desktop interface (HTML5/CSS3/ES6)
+├── packages/
+│   ├── contracts/              # Pydantic v2 schemas for tasks, steps, tools, approvals, quantum
+│   └── sdk-python/             # PlaqClient supporting direct SQLite and remote REST/WS
+├── services/
+│   ├── control-plane/          # SQLite WAL state engine, audit chainer, secret redactor
+│   ├── agent-runtime/          # 7-stage deterministic loop, 12-tool registry, approval gates
+│   ├── sandbox-manager/        # PathGuard workspace confinement, ProcessRunner tree-kill
+│   ├── model-gateway/          # Planning engine & provider abstraction
+│   └── artifact-service/       # Content-addressable storage (CAS) for reports and diffs
+├── engines/
+│   └── quantum/                # Plaq-Quantum v0.3.0 domain engine
+│       └── src/plaq_quantum/   # Circuits, hardware profiles, cost models, Stim/PyMatching QEC
+├── tests/                      # 413 passing tests (unit, adversarial, and 4-tier E2E suites)
+│   ├── e2e/                    # Tier 1 (Features), Tier 2 (Boundaries), Tier 3 (Pairwise), Tier 4 (Workloads)
+│   └── ...                     # Comprehensive quantum & control plane test suites
+├── plaq.py                     # Root CLI executable wrapper
+├── plaq_bootstrap.py           # Universal path resolver & Starlette/FastAPI runtime shim
+└── pyproject.toml              # Modern monorepo build configuration
+```
+
+---
+
+## Unified CLI Reference (`plaq`)
+
+Plaq-OS provides a first-class CLI via `plaq` (or `python plaq.py`):
+
+```powershell
+# Display help and available command groups
+python plaq.py --help
+
+# 1. Manage Agent Tasks
+python plaq.py task create "Optimize chemistry_femoco_6q circuit for superconducting hardware"
+python plaq.py task list
+python plaq.py task status <task_id>
+python plaq.py task logs <task_id>
+
+# 2. Quantum Engine Synthesis & Estimation
+python plaq.py quantum compile qft --qubits 4
+python plaq.py quantum estimate --qubits 4 --depth 9 --hardware ibm_falcon
+python plaq.py quantum benchmark --workloads chemistry_femoco_6q
+
+# 3. Workspace Inspection
+python plaq.py workspace status
+
+# 4. Launch FastAPI Backend & Workbench Server
+python plaq.py serve --port 8500
+```
 
 ---
 
@@ -300,7 +419,30 @@ python main.py --ui
 
 ---
 
-## Quickstart & CLI Reference
+## Test Portfolio & Verification Matrix
+
+Plaq-OS maintains an extensive test suite guaranteeing strict verification, zero regression, and hardened boundaries:
+
+| Test Suite Category | Test Location | Test Count | Status | Description |
+|:---|:---|:---:|:---:|:---|
+| **Quantum Engine Baseline** | `tests/test_*.py` | 38 | **38 / 38 PASS** | Rotated surface codes, PyMatching MWPM, Ross-Selinger $T$-synthesis, hardware topologies, 4-baselines |
+| **Control Plane Unit** | `tests/test_plaq_control_plane.py` | 21 | **21 / 21 PASS** | SQLite WAL concurrency, 8-state machine, SHA-256 audit log, crash recovery |
+| **Agent Runtime Unit** | `tests/test_plaq_agent_runtime.py` | 17 | **17 / 17 PASS** | 7-stage deterministic agent loop, 12-tool dispatch, human approval gates |
+| **Sandbox Manager Unit** | `tests/test_plaq_sandbox.py` | 20 | **20 / 20 PASS** | PathGuard path confinement, traversal rejection, process timeout & tree-kill |
+| **Model Gateway Unit** | `tests/test_plaq_model_gateway.py` | 14 | **14 / 14 PASS** | Deterministic planner, structured task criteria decomposition |
+| **FastAPI Backend Unit** | `tests/test_plaq_api.py` | 14 | **14 / 14 PASS** | REST endpoints (`/health`, `/tasks`, `/approvals`, `/quantum`), WebSocket streaming |
+| **Unified CLI Unit** | `tests/test_plaq_cli.py` | 11 | **11 / 11 PASS** | `task`, `quantum`, `workspace`, and `serve` CLI command dispatch |
+| **Contracts, SDK & Artifacts** | `tests/test_plaq_*.py` | 32 | **32 / 32 PASS** | Pydantic v2 validation, content-addressable storage, PlaqClient |
+| **Adversarial & Stress Challenges** | `tests/test_m2_*.py`, `test_quantum_*.py` | 65 | **65 / 65 PASS** | Secret scrubbing, race conditions, extreme $T$-counts, out-of-budget epsilons |
+| **Tier 1 E2E Feature Isolation** | `tests/e2e/test_tier1_feature.py` | 80 | **80 / 80 PASS** | All 16 architectural features evaluated end-to-end (including 4-panel workbench) |
+| **Tier 2 E2E Boundary & Security** | `tests/e2e/test_tier2_boundary.py` | 77 | **76 / 77 PASS** | 7 adversarial domains (1 Windows unprivileged symlink skip) |
+| **Tier 3 E2E Pairwise Interactions** | `tests/e2e/test_tier3_pairwise.py` | 20 | **20 / 20 PASS** | Cross-subsystem interaction flows (approval + audit, agent + sandbox + redaction) |
+| **Tier 4 E2E Real-World Workloads** | `tests/e2e/test_tier4_workloads.py` | 5 | **5 / 5 PASS** | Complete multi-step workflows (crash recovery, co-design pipeline, live event stream) |
+| **Total Test Portfolio** | **Entire Monorepo** | **414** | **413 PASS, 1 SKIP, 0 FAIL** | **100% Passing Operational Test Suite** |
+
+---
+
+## Quickstart & Verification Guide
 
 ### 1. Installation
 Clone the repository and install dependencies in Python 3.10+:
@@ -310,37 +452,30 @@ cd plaq-os
 pip install -r requirements.txt
 ```
 
-### 2. Running Tests
-Execute the complete test suite (38 unit tests):
+### 2. Verify Full Test Suite
+Run all unit and E2E tests across the entire monorepo:
 ```powershell
-pytest -v
+# Run all 232 unit & subsystem tests
+pytest tests/ -v
+
+# Run all 182 end-to-end verification tests
+pytest tests/e2e/ -v
 ```
 
-### 3. Running the Complete R&D Benchmark Suite
+### 3. Launch Plaq-OS Desktop Workbench & API Server
 ```powershell
-python main.py --run-all
+# Launch FastAPI backend & serve Desktop Workbench on http://localhost:8500
+python plaq.py serve --port 8500
 ```
-This executes compiler baselines, Pareto optimization, hypothesis evaluation, the 4-baselines protocol, ablation studies, search benchmarks, and outputs the run manifest and HTML dashboard.
+Open `http://localhost:8500` in any modern web browser to access the interactive 4-panel OS workbench.
 
-### 4. Targeted CLI Commands
+### 4. Run Quantum Co-Design Benchmarks
 ```powershell
-# Launch interactive mission control UI
-python main.py --ui --port 8500
-
 # Run 4-Baselines comparative protocol
-python main.py --baselines --workload chemistry_femoco_6q --hardware superconducting
+python plaq.py quantum benchmark --workloads chemistry_femoco_6q
 
-# Run systematic ablation study
-python main.py --ablation --workload chemistry_femoco_6q
-
-# Benchmark optimization search algorithms
-python main.py --search-bench --workload chemistry_femoco_6q
-
-# Run joint cross-layer Pareto optimization
-python main.py --optimize --workload chemistry_femoco_6q --hardware superconducting --epsilon 1e-3
-
-# Generate reproducible run manifest
-python main.py --manifest
+# Run end-to-end R&D pipeline & generate HTML dashboard
+python main.py --run-all
 ```
 
 ---

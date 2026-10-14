@@ -1,0 +1,25 @@
+--- a/engines/quantum/src/plaq_quantum/optimizer.py
++++ b/engines/quantum/src/plaq_quantum/optimizer.py
+@@ -133,14 +133,18 @@ def compute_compilation_fingerprint(
+     hasher = hashlib.sha256()
+-    hasher.update(circuit.name.encode("utf-8"))
+-    hasher.update(f":{circuit.num_qubits}:{circuit.num_clbits}:".encode("utf-8"))
++    hasher.update(f":qubits={circuit.num_qubits}:clbits={circuit.num_clbits}:".encode("utf-8"))
+     for inst in circuit.data:
+         op = inst.operation
+         q_indices = [circuit.find_bit(q).index for q in inst.qubits]
+-        params_str = ",".join(f"{float(p):.8f}" for p in op.params if isinstance(p, (int, float)))
+-        hasher.update(f"{op.name}[{','.join(map(str, q_indices))}]:{params_str};".encode("utf-8"))
++        c_indices = [circuit.find_bit(c).index for c in inst.clbits]
++        params_str = ",".join(
++            f"{float(p):.8f}" if isinstance(p, (int, float)) else str(p)
++            for p in op.params
++        )
++        cl_str = f"->{','.join(map(str, c_indices))}" if c_indices else ""
++        hasher.update(f"{op.name}[{','.join(map(str, q_indices))}{cl_str}]:{params_str};".encode("utf-8"))
+ 
+     edges_str = str(sorted(hardware.get_coupling_edges(circuit.num_qubits)))
+-    hasher.update(f":hw={hardware.name}:{edges_str}:".encode("utf-8"))
++    basis_str = ",".join(sorted(hardware.basis_gates)) if hardware.basis_gates else ""
++    hasher.update(f":hw={hardware.name}:{edges_str}:basis={basis_str}:".encode("utf-8"))
+     hasher.update(f":opt={opt_level}:rout={routing_method}:lay={layout_method}:seed={seed}:".encode("utf-8"))

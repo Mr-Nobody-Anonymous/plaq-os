@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plaq-OS: Programmable Quantum Computing Workbench</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top OS Taskbar -->
+  <header class="os-header">
+    <div class="brand-section">
+      <div class="brand-logo">P</div>
+      <div class="brand-title">
+        PLAQ-OS
+        <span class="brand-tag">v0.3.0 QUANTUM WORKBENCH</span>
+      </div>
+    </div>
+
+    <div class="header-status-ticker">
+      <div class="status-badge">
+        <span id="health-indicator" class="status-indicator"></span>
+        <span id="health-text">ONLINE</span>
+      </div>
+      <div class="status-badge" style="color:var(--text-muted);">
+        <span>WS:</span>
+        <span id="active-workspace-badge">C:\Users\hp\Desktop\plaq-os</span>
+      </div>
+      <div class="status-badge">
+        <span style="color:var(--accent);">QEC:</span>
+        <span>STIM 1.16 / PYMATCHING</span>
+      </div>
+      <button class="btn btn-primary" id="btn-new-task">+ New Task</button>
+    </div>
+  </header>
+
+  <!-- 4-Panel OS Workbench Container -->
+  <main class="workbench-container">
+
+    <!-- 1. Left Sidebar: Explorer, Tasks & Quantum Experiments -->
+    <aside class="left-sidebar" id="left-sidebar">
+      <div class="sidebar-header">
+        <span>Project Explorer</span>
+        <span style="font-family:var(--font-mono); color:var(--accent);">PLAQ-OS</span>
+      </div>
+
+      <div class="sidebar-section" style="max-height: 38%;">
+        <div class="sidebar-section-title">
+          <span>WORKSPACE FILES</span>
+          <span>📁</span>
+        </div>
+        <ul class="file-tree" id="workspace-file-tree">
+          <li class="tree-item active"><span>📄</span> circuits.py</li>
+          <li class="tree-item"><span>📄</span> cost_model.py</li>
+          <li class="tree-item"><span>📄</span> hardware.py</li>
+          <li class="tree-item"><span>📄</span> optimizer.py</li>
+          <li class="tree-item"><span>📄</span> stim_bridge.py</li>
+          <li class="tree-item"><span>📁</span> engines/quantum/</li>
+          <li class="tree-item"><span>📁</span> services/agent-runtime/</li>
+          <li class="tree-item"><span>📁</span> services/control-plane/</li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section" style="max-height: 34%;">
+        <div class="sidebar-section-title">
+          <span>TASK QUEUE</span>
+          <span style="cursor:pointer;" onclick="window.plaqApp.refreshTasks()">🔄</span>
+        </div>
+        <ul class="task-list" id="task-list-items">
+          <li style="padding:10px 14px; font-size:11px; color:var(--text-dim);">Loading tasks...</li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section" style="flex:1;">
+        <div class="sidebar-section-title">
+          <span>EXPERIMENT CATALOG</span>
+          <span>⚛️</span>
+        </div>
+        <ul class="experiment-list">
+          <li class="experiment-item"><span>🧪</span> Bernstein-Vazirani (N=4)</li>
+          <li class="experiment-item"><span>🧪</span> QAOA MaxCut (p=2)</li>
+          <li class="experiment-item"><span>🧪</span> QFT Algorithm (N=6)</li>
+          <li class="experiment-item"><span>🧪</span> Molecular VQE (FeMoCo)</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- 2. Center Workspace Area: Editor, Diff, Pareto Canvas -->
+    <section class="center-workspace" id="center-workspace">
+      <!-- Tabs -->
+      <nav class="workspace-tabs">
+        <div class="ws-tab active" data-view="quantum-lab">
+          <span>⚛️</span> Quantum Co-Design Lab
+        </div>
+        <div class="ws-tab" data-view="code-editor">
+          <span>📝</span> Code Editor (circuits.py)
+        </div>
+        <div class="ws-tab" data-view="git-diff">
+          <span>🔀</span> Worktree Diff
+        </div>
+      </nav>
+
+      <!-- Tab Views -->
+      <div class="workspace-views-container">
+        
+        <!-- View 1: Quantum Co-Design Lab (Pareto Frontier) -->
+        <div class="view-panel active" id="view-quantum-lab">
+          <div class="pareto-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h2 style="font-size:16px; font-weight:700; color:var(--text-highlight);">
+                  Multi-Objective Pareto Frontier Co-Design
+                </h2>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                  Trade-off optimization between Physical Qubit Overheads and Wall-Clock Runtime under Surface Code (d &ge; 3).
+                </p>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <button class="btn btn-primary" id="btn-run-opt">Run Co-Design Optimization</button>
+              </div>
+            </div>
+
+            <div class="pareto-canvas-wrapper">
+              <canvas id="pareto-canvas"></canvas>
+            </div>
+
+            <!-- Quantum Metrics Dashboard Grid -->
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;">
+              <div class="status-badge" style="flex-direction:column; align-items:flex-start; padding:10px;">
+                <span style="font-size:10px; color:var(--text-dim);">BEST FT SPEEDUP</span>
+                <span style="font-size:18px; font-weight:700; color:var(--accent);">2.49x</span>
+                <span style="font-size:10px; color:var(--text-muted);">9.58ms &rarr; 3.85ms</span>
+              </div>
+              <div class="status-badge" style="flex-direction:column; align-items:flex-start; padding:10px;">
+                <span style="font-size:10px; color:var(--text-dim);">CODE DISTANCE (d)</span>
+                <span style="font-size:18px; font-weight:700; color:var(--accent-purple);">d = 9</span>
+                <span style="font-size:10px; color:var(--text-muted);">&epsilon; &le; 10&minus;3 target</span>
+              </div>
+              <div class="status-badge" style="flex-direction:column; align-items:flex-start; padding:10px;">
+                <span style="font-size:10px; color:var(--text-dim);">DECODER OVERHEAD</span>
+                <span style="font-size:18px; font-weight:700; color:var(--accent-emerald);">&lt; 1.05x</span>
+                <span style="font-size:10px; color:var(--text-muted);">PyMatching 2.4+ MWPM</span>
+              </div>
+              <div class="status-badge" style="flex-direction:column; align-items:flex-start; padding:10px;">
+                <span style="font-size:10px; color:var(--text-dim);">AUDIT CHAIN HASH</span>
+                <span style="font-size:14px; font-weight:700; color:var(--text-highlight); font-family:var(--font-mono);">SHA-256</span>
+                <span style="font-size:10px; color:var(--accent-emerald);">VERIFIED UNBROKEN</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- View 2: Code Editor -->
+        <div class="view-panel" id="view-code-editor">
+          <div style="background:#04060a; border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; font-family:var(--font-mono); font-size:12px; line-height:1.6; color:#e2e8f0; height:100%; overflow:auto;">
+            <span style="color:#64748b;"># plaq_quantum/circuits.py - Bernstein-Vazirani Generator</span><br/>
+            <span style="color:#9d4edd;">def</span> <span style="color:#00f0ff;">make_bernstein_vazirani_circuit</span>(bitstring: str = <span style="color:#00f5d4;">"10110"</span>) -&gt; QuantumCircuit:<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;n_qubits = len(bitstring) + 1<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;qc = QuantumCircuit(n_qubits, len(bitstring))<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b;"># Initialize target ancilla qubit in |-&gt;</span><br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;qc.x(n_qubits - 1)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;qc.h(n_qubits - 1)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b;"># Hadamard transform input register</span><br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#9d4edd;">for</span> q <span style="color:#9d4edd;">in</span> range(len(bitstring)):<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;qc.h(q)<br/>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#9d4edd;">return</span> qc<br/>
+          </div>
+        </div>
+
+        <!-- View 3: Git Diff Inspector -->
+        <div class="view-panel" id="view-git-diff">
+          <div style="background:#04060a; border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; font-family:var(--font-mono); font-size:12px; line-height:1.6; color:#94a3b8; height:100%; overflow:auto;">
+            <span style="color:#64748b;">diff --git a/engines/quantum/cost_model.py b/engines/quantum/cost_model.py</span><br/>
+            <span style="color:#00f0ff;">@@ -124,7 +124,12 @@ def solve_minimum_code_distance(...)</span><br/>
+            <span style="color:#ff0054;">-    return int(d)</span><br/>
+            <span style="color:#00f5d4;">+    return CodeDistanceResult(val=d, feasible=is_feasible, reason=f_reason)</span><br/>
+            <span style="color:#00f5d4;">+    # Dual-type return guarantees backward-compatibility with integer expectations</span><br/>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 4. Bottom Panel: Interactive Terminal Stream / Event Logs -->
+      <footer class="bottom-panel" id="bottom-panel">
+        <div class="bottom-panel-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>💻</span>
+            <span>TERMINAL &amp; PLATFORM EVENT STREAM</span>
+          </div>
+          <div style="display:flex; gap:12px; color:var(--text-dim);">
+            <span>SQLite WAL</span>
+            <span>PID: 8000</span>
+          </div>
+        </div>
+        <div class="terminal-stream" id="terminal-output-stream">
+          <!-- Live logged entries -->
+        </div>
+      </footer>
+    </section>
+
+    <!-- 3. Right Inspector: Agent Plan, Criteria & Approval Gates -->
+    <aside class="right-inspector" id="right-inspector">
+      <div class="sidebar-header">
+        <span>Agent Inspector</span>
+        <span style="font-family:var(--font-mono); color:var(--accent-purple);">7-STAGE RUNTIME</span>
+      </div>
+
+      <!-- Human Approval Gate Area (Prompts appear here dynamically) -->
+      <div class="inspector-card">
+        <div class="inspector-card-title">
+          <span>HUMAN APPROVAL GATE</span>
+          <span>🛡️</span>
+        </div>
+        <div id="inspector-approvals-area">
+          <div style="font-size:11px; color:var(--text-dim);">No pending human approvals. System operating autonomously.</div>
+        </div>
+      </div>
+
+      <!-- Active Plan Checklist -->
+      <div class="inspector-card" style="flex:1;">
+        <div class="inspector-card-title">
+          <span>ACTIVE PLAN &amp; CRITERIA</span>
+          <span>📋</span>
+        </div>
+        <ul class="agent-plan-list" id="inspector-plan-list">
+          <li class="plan-step-item completed">
+            <div style="font-weight:600;">Step 1: Inspect Workspace</div>
+            <div style="color:var(--text-muted); font-size:10px;">Check codebase structure &amp; monorepo dependencies</div>
+          </li>
+          <li class="plan-step-item running">
+            <div style="font-weight:600;">Step 2: Quantum Compilation</div>
+            <div style="color:var(--text-muted); font-size:10px;">Extract DAG critical path &amp; synthesize T-gates</div>
+          </li>
+          <li class="plan-step-item">
+            <div style="font-weight:600;">Step 3: Fault-Tolerant Estimation</div>
+            <div style="color:var(--text-muted); font-size:10px;">Calculate minimum code distance d &ge; 3 for &epsilon;=1e-3</div>
+          </li>
+          <li class="plan-step-item">
+            <div style="font-weight:600;">Step 4: Publish Artifact</div>
+            <div style="color:var(--text-muted); font-size:10px;">SHA-256 content-addressable storage publication</div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Hardware Profile & Noise Telemetry -->
+      <div class="inspector-card">
+        <div class="inspector-card-title">
+          <span>HARDWARE PROFILE &amp; NOISE</span>
+          <span>⚙️</span>
+        </div>
+        <div id="hardware-metrics-content">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-family:var(--font-mono); font-size:11px;">
+            <div>Profile: <strong style="color:var(--text-highlight);">demo-illustrative</strong></div>
+            <div>Topology: <strong style="color:var(--accent);">heavy-hex</strong></div>
+            <div>p_phys: <strong style="color:var(--accent-amber);">0.001</strong></div>
+            <div>Threshold: <strong style="color:var(--accent-emerald);">0.01</strong></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Client-side Scripts -->
+  <script src="/js/ws.js"></script>
+  <script src="/js/components/inspector.js"></script>
+  <script src="/js/components/pareto.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

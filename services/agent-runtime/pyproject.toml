@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plaq-agent-runtime"
+version = "0.1.0"
+description = "Plaq-OS Agent Runtime, 7-Stage Execution Loop, Tool Registry & Human Approval Gates"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0.0",
+    "plaq-contracts>=0.1.0",
+    "plaq-control-plane>=0.1.0",
+    "plaq-sandbox>=0.1.0",
+    "plaq-model-gateway>=0.1.0",
+    "plaq-artifacts>=0.1.0",
+    "plaq-quantum>=0.3.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
