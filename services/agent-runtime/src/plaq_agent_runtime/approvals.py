@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from plaq_contracts.approval import ApprovalDecision, ApprovalRequest, ApprovalStatus
 from plaq_contracts.event import EventType, PlatformEvent
 from plaq_contracts.tool import PermissionTier, ToolDefinition
 from plaq_control_plane.repository import ControlPlaneRepository

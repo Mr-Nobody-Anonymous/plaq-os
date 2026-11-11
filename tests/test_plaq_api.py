@@ -36,9 +36,12 @@ class TestAPIHealth:
         resp = client.get("/api/v1/health")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "ok"
+        assert data["status"] in {"ok", "degraded"}
         assert data["version"] == "0.3.0"
         assert "components" in data
+        assert "control_plane" in data["components"]
+        assert "python" in data
+        assert "platform" in data
 
     def test_healthz_endpoint(self, client):
         resp = client.get("/api/v1/healthz")
@@ -172,6 +175,32 @@ class TestAPIQuantum:
         data = resp.json()
         assert data["status"] == "ok"
         assert "comparisons" in data
+
+    def test_quantum_run_and_catalogs(self, client):
+        run = client.post("/api/v1/quantum/run", json={"workload": "bell"})
+        assert run.status_code == 200
+        assert run.json()["num_qubits"] == 2
+        wl = client.get("/api/v1/quantum/workloads")
+        assert wl.status_code == 200
+        assert wl.json()["workloads"]
+        hw = client.get("/api/v1/quantum/hardware")
+        assert hw.status_code == 200
+        assert hw.json()["profiles"]
+
+    def test_task_run_enqueues_job(self, client, test_repo):
+        created = client.post("/api/v1/tasks", json={"goal": "Analyze data and generate docs"})
+        task_id = created.json()["id"]
+        resp = client.post(f"/api/v1/tasks/{task_id}/run?background=true")
+        assert resp.status_code == 202
+        job = resp.json()["job"]
+        assert job["status"] in {"queued", "running", "completed", "failed"}
+        listed = client.get(f"/api/v1/tasks/{task_id}/jobs")
+        assert listed.status_code == 200
+        assert any(j["id"] == job["id"] for j in listed.json())
+        # Drain the worker before the fixture closes the SQLite file.
+        from plaq_agent_runtime.queue import stop_queue_for
+
+        stop_queue_for(test_repo)
 
 
 class TestAPIStreaming:

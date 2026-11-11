@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 from starlette.websockets import WebSocket
 
-from plaq_contracts.event import EventType, PlatformEvent
+from plaq_contracts.event import PlatformEvent
 
 
 class EventBroadcaster:

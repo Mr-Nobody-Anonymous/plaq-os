@@ -64,6 +64,7 @@ from plaq_quantum.cost_model import (
 # SECTION 1: LIVE QUANTUM SIMULATIONS (STIM + PYMATCHING MWPM)
 # ==============================================================================
 
+@pytest.mark.skipif(not HAS_STIM or not HAS_PYMATCHING, reason="stim/pymatching not installed (lite profile)")
 class TestLiveQuantumSimulations:
     """Stress testing the live Stim rotated surface code simulator and MWPM decoder."""
 

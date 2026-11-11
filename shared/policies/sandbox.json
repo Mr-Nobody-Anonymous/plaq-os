@@ -1,0 +1,12 @@
+{
+  "version": "0.3.0",
+  "description": "Sandbox confinement policy enforced by plaq_sandbox.PathGuard.",
+  "workspace_root_required": true,
+  "allow_absolute_paths": false,
+  "allow_symlink_escape": false,
+  "reject_null_bytes": true,
+  "reject_url_encoded_traversal": true,
+  "normalize_backslashes": true,
+  "default_timeout_sec": 30,
+  "max_timeout_sec": 300
+}

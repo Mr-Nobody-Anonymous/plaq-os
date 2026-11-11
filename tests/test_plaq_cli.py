@@ -2,7 +2,7 @@
 
 import io
 import json
-import pytest
+from pathlib import Path
 from unittest.mock import patch
 
 from plaq_cli.main import build_parser, main
@@ -17,7 +17,18 @@ class TestCLIParsing:
             a for a in parser._actions if a.dest == "command"
         )
         registered_commands = set(subparsers_action.choices.keys())
-        assert {"task", "quantum", "workspace", "serve"}.issubset(registered_commands)
+        assert {
+            "task",
+            "quantum",
+            "workspace",
+            "serve",
+            "mcp",
+            "job",
+            "worker",
+            "db",
+            "doctor",
+            "init",
+        }.issubset(registered_commands)
 
     def test_task_create_arguments(self):
         parser = build_parser()
@@ -107,6 +118,30 @@ class TestCLIExecution:
         bad_dir = tmp_path / "non_existent_folder_xyz"
         ret = main(["workspace", "open", str(bad_dir)])
         assert ret == 1
+
+    def test_doctor_json(self):
+        out_buf = io.StringIO()
+        with patch("sys.stdout", out_buf):
+            ret = main(["doctor", "--json"])
+        assert ret in (0, 1)
+        data = json.loads(out_buf.getvalue())
+        assert "checks" in data
+        assert data["status"] in {"ok", "warn", "fail"}
+        names = {c["name"] for c in data["checks"]}
+        assert "python" in names
+        assert "os" in names
+
+    def test_init_json(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PLAQ_DB_PATH", str(tmp_path / "init.db"))
+        monkeypatch.chdir(tmp_path)
+        out_buf = io.StringIO()
+        with patch("sys.stdout", out_buf):
+            ret = main(["init", "--json"])
+        assert ret == 0
+        data = json.loads(out_buf.getvalue())
+        assert "db" in data
+        assert "migrations" in data
+        assert Path(data["db"]).exists() or Path(data["db"]).parent.exists()
 
     def test_workspace_open_valid_directory(self, tmp_path):
         valid_dir = tmp_path / "valid_folder"

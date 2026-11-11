@@ -7,15 +7,15 @@ name = "plaq-api"
 version = "0.3.0"
 description = "FastAPI Application Server for Plaq-OS"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.23.0",
     "pydantic>=2.0.0",
-    "plaq-contracts",
-    "plaq-control-plane",
-    "plaq-agent-runtime",
-    "plaq-quantum",
+    "plaq-contracts>=0.3.0",
+    "plaq-control-plane>=0.3.0",
+    "plaq-agent-runtime>=0.3.0",
+    "plaq-quantum>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -23,3 +23,6 @@ dev = [
     "pytest>=7.0.0",
     "httpx>=0.24.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]

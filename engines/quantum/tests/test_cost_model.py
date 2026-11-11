@@ -3,7 +3,6 @@ Unit tests for fault-tolerant cost model and resource scaling.
 """
 
 import math
-import pytest
 try:
     from plaq_quantum.circuits import make_test_circuit
     from plaq_quantum.hardware import DEMO_HARDWARE, SUPERCONDUCTING_HERON, QLDPC_BIVARIATE_BICYCLE
@@ -15,7 +14,7 @@ try:
     )
 except ImportError:
     from circuits import make_test_circuit
-    from hardware import DEMO_HARDWARE, SUPERCONDUCTING_HERON, QLDPC_BIVARIATE_BICYCLE
+    from hardware import SUPERCONDUCTING_HERON, QLDPC_BIVARIATE_BICYCLE
     from cost_model import (
     extract_circuit_metrics,
     solve_minimum_code_distance,

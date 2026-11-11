@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/Mr-Nobody-Anonymous/plaq-os/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square&logo=githubactions" alt="Build Status" /></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue?style=flat-square&logo=python" alt="Python Version" /></a>
-  <a href="#test-portfolio--verification-matrix"><img src="https://img.shields.io/badge/tests-413%20passed%20(100%25)-success?style=flat-square" alt="Test Status" /></a>
+  <a href="#test-portfolio--verification-matrix"><img src="https://img.shields.io/badge/tests-450%2B%20passed-success?style=flat-square" alt="Test Status" /></a>
   <a href="https://github.com/quantumlib/Stim"><img src="https://img.shields.io/badge/QEC%20Simulator-Stim%201.16%2B-purple?style=flat-square" alt="Stim" /></a>
   <a href="https://github.com/oscarhiggott/PyMatching"><img src="https://img.shields.io/badge/QEC%20Decoder-PyMatching%202.4%2B%20(MWPM)-orange?style=flat-square" alt="PyMatching" /></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/API-FastAPI%20%26%20WebSockets-009688?style=flat-square&logo=fastapi" alt="FastAPI" /></a>
@@ -42,6 +42,7 @@
 - [The Four-Baselines Protocol](#the-four-baselines-protocol)
 - [Interactive Mission Control UI](#interactive-mission-control-ui)
 - [Test Portfolio & Verification Matrix](#test-portfolio--verification-matrix)
+- [Install (Linux / macOS / Windows / Docker)](#install-linux--macos--windows--docker)
 - [Quickstart & Verification Guide](#quickstart--verification-guide)
 - [Reproducibility & Run Manifest](#reproducibility--run-manifest)
 - [License & Citation](#license--citation)
@@ -150,9 +151,13 @@ plaq-os/
 
 Plaq-OS provides a first-class CLI via `plaq` (or `python plaq.py`):
 
-```powershell
+```bash
 # Display help and available command groups
 python plaq.py --help
+
+# 0. Install diagnostics (Linux / macOS / Windows)
+python plaq.py doctor
+python plaq.py init
 
 # 1. Manage Agent Tasks
 python plaq.py task create "Optimize chemistry_femoco_6q circuit for superconducting hardware"
@@ -163,13 +168,19 @@ python plaq.py task logs <task_id>
 # 2. Quantum Engine Synthesis & Estimation
 python plaq.py quantum compile qft --qubits 4
 python plaq.py quantum estimate --qubits 4 --depth 9 --hardware ibm_falcon
-python plaq.py quantum benchmark --workloads chemistry_femoco_6q
+python plaq.py quantum benchmark --json
+python plaq.py quantum run bell --json
 
 # 3. Workspace Inspection
 python plaq.py workspace status
 
 # 4. Launch FastAPI Backend & Workbench Server
-python plaq.py serve --port 8500
+python plaq.py serve --port 8000
+
+# 5. Background jobs, migrations, MCP
+python plaq.py worker
+python plaq.py db status
+python plaq.py mcp
 ```
 
 ---
@@ -442,40 +453,52 @@ Plaq-OS maintains an extensive test suite guaranteeing strict verification, zero
 
 ---
 
+## Install (Linux / macOS / Windows / Docker)
+
+Full OS-specific instructions: **[INSTALL.md](./INSTALL.md)**.
+
+```bash
+# Linux / macOS / WSL
+./install.sh --dev && source .venv/bin/activate
+
+# Windows PowerShell
+.\install.ps1 -Dev; .\.venv\Scripts\Activate.ps1
+
+# Docker (any OS)
+docker compose up --build
+```
+
+Then:
+
+```bash
+plaq doctor          # diagnose Python, packages, DB, auth
+plaq init            # create ~/.plaq, migrate SQLite, seed API key
+plaq serve --port 8000
+```
+
+`--lite` skips Stim/PyMatching when a C++ compiler is not available.
+
 ## Quickstart & Verification Guide
 
 ### 1. Installation
-Clone the repository and install dependencies in Python 3.10+:
-```powershell
-git clone https://github.com/Mr-Nobody-Anonymous/plaq-os.git
-cd plaq-os
-pip install -r requirements.txt
-```
+See [Install](#install-linux--macos--windows--docker) or [INSTALL.md](./INSTALL.md). Minimum: Python 3.10+.
 
 ### 2. Verify Full Test Suite
-Run all unit and E2E tests across the entire monorepo:
-```powershell
-# Run all 232 unit & subsystem tests
-pytest tests/ -v
-
-# Run all 182 end-to-end verification tests
-pytest tests/e2e/ -v
+```bash
+pytest -q
 ```
 
 ### 3. Launch Plaq-OS Desktop Workbench & API Server
-```powershell
-# Launch FastAPI backend & serve Desktop Workbench on http://localhost:8500
-python plaq.py serve --port 8500
+```bash
+python plaq.py serve --port 8000
 ```
-Open `http://localhost:8500` in any modern web browser to access the interactive 4-panel OS workbench.
+Open `http://127.0.0.1:8000` in any modern web browser.
 
 ### 4. Run Quantum Co-Design Benchmarks
-```powershell
-# Run 4-Baselines comparative protocol
-python plaq.py quantum benchmark --workloads chemistry_femoco_6q
-
-# Run end-to-end R&D pipeline & generate HTML dashboard
-python main.py --run-all
+```bash
+python plaq.py quantum benchmark --json
+python plaq.py quantum run bell --json
+python main.py --optimize --workload test_rz_cx_5q --hardware superconducting
 ```
 
 ---

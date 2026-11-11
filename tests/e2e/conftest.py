@@ -144,35 +144,54 @@ class SecretRedactor:
 # ---------------------------------------------------------------------------
 # Contract Helper: PathGuard Resolver
 # ---------------------------------------------------------------------------
+# Delegate to the production implementation so e2e tests exercise real code.
+# (Previously this file carried a divergent copy that missed backslash
+# traversal — see services/sandbox-manager/src/plaq_sandbox/guard.py.)
 
-class PathGuard:
-    """Enforces workspace boundary confinement, rejecting traversal attacks."""
+try:
+    from plaq_sandbox.guard import PathGuard as _ProdPathGuard
+    from plaq_sandbox.guard import PathTraversalError as _ProdPathTraversalError
 
-    @staticmethod
-    def resolve_safe_path(workspace_root: str, relative_path: str) -> Path:
-        """Resolve path and verify it stays inside workspace_root."""
-        if not relative_path:
-            return Path(workspace_root).resolve()
+    # Re-export production error type under the harness name so
+    # ``pytest.raises(PathTraversalError)`` catches production raises.
+    PathTraversalError = _ProdPathTraversalError  # type: ignore[assignment]
 
-        # Reject null byte injection
-        if "\0" in relative_path:
-            raise PathTraversalError(f"Null byte detected in path: {relative_path!r}")
+    class PathGuard(_ProdPathGuard):  # type: ignore[valid-type,misc]
+        """Harness alias for the production PathGuard."""
 
-        # Decode URL-encoded traversal patterns
-        import urllib.parse
-        decoded = urllib.parse.unquote(relative_path).replace("%2e", ".").replace("%2f", "/").replace("%5c", "\\")
+        pass
 
-        root_canonical = Path(workspace_root).resolve()
-        target = (root_canonical / decoded).resolve()
+except ImportError:  # pragma: no cover - fallback if sandbox pkg unavailable
 
-        try:
-            target.relative_to(root_canonical)
-        except ValueError as exc:
-            raise PathTraversalError(
-                f"Path traversal detected: '{relative_path}' resolves to '{target}', which escapes '{root_canonical}'"
-            ) from exc
+    class PathGuard:  # type: ignore[no-redef]
+        """Fallback PathGuard (production package not importable)."""
 
-        return target
+        @staticmethod
+        def resolve_safe_path(workspace_root: str, relative_path: str) -> Path:
+            """Resolve path and verify it stays inside workspace_root."""
+            if not relative_path:
+                return Path(workspace_root).resolve()
+
+            if "\0" in relative_path:
+                raise PathTraversalError(f"Null byte detected in path: {relative_path!r}")
+
+            import urllib.parse
+
+            decoded = urllib.parse.unquote(relative_path)
+            decoded = decoded.replace("%2e", ".").replace("%2f", "/").replace("%5c", "\\")
+            normalized = decoded.replace("\\", "/")
+
+            root_canonical = Path(workspace_root).resolve()
+            target = (root_canonical / normalized).resolve()
+
+            try:
+                target.relative_to(root_canonical)
+            except ValueError as exc:
+                raise PathTraversalError(
+                    f"Path traversal detected: '{relative_path}' resolves to '{target}', which escapes '{root_canonical}'"
+                ) from exc
+
+            return target
 
 
 # ---------------------------------------------------------------------------

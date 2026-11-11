@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import sys
 from time import perf_counter
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import pandas as pd
 
 try:
@@ -23,7 +23,7 @@ except (ImportError, ValueError):
         from plaq_quantum.hardware import HardwareModel, DEMO_HARDWARE, HARDWARE_CATALOG
         from plaq_quantum.cost_model import extract_circuit_metrics, evaluate_fault_tolerant_cost
     except ImportError:
-        from circuits import make_test_circuit, get_benchmark_workloads
+        from circuits import get_benchmark_workloads
         from hardware import HardwareModel, DEMO_HARDWARE, HARDWARE_CATALOG
         from cost_model import extract_circuit_metrics, evaluate_fault_tolerant_cost
 
@@ -105,11 +105,11 @@ def run_full_benchmark_suite(
 
     all_results: List[pd.DataFrame] = []
 
-    print(f"\n=======================================================", flush=True)
-    print(f"  Q-Day OS: Running Compiler & Fault-Tolerant Baselines", flush=True)
+    print("\n=======================================================", flush=True)
+    print("  Q-Day OS: Running Compiler & Fault-Tolerant Baselines", flush=True)
     print(f"  Hardware: {hardware.name} ({hardware.technology})", flush=True)
     print(f"  Target Reliability Budget: epsilon = {target_epsilon}", flush=True)
-    print(f"=======================================================\n", flush=True)
+    print("=======================================================\n", flush=True)
 
     for w_name, qc in workloads.items():
         print(f"[*] Benchmarking workload: {w_name} ({qc.num_qubits} qubits)...", flush=True)

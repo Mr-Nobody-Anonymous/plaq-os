@@ -2,7 +2,6 @@
 Unit tests for hardware models & coupling topologies.
 """
 
-import pytest
 try:
     from plaq_quantum.hardware import (
         HardwareModel,
@@ -15,7 +14,6 @@ try:
     )
 except ImportError:
     from hardware import (
-    HardwareModel,
     DEMO_HARDWARE,
     SUPERCONDUCTING_HERON,
     TRAPPED_ION_FORTE,

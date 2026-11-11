@@ -10,16 +10,31 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "qiskit>=1.0.0",
-    "stim>=1.16.0",
-    "pymatching>=2.4.0",
     "numpy>=1.24.0",
     "pandas>=2.0.0",
     "matplotlib>=3.7.0",
     "scipy>=1.10.0",
+    "pydantic>=2.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "httpx>=0.25.0",
+    "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
+quantum = [
+    "stim>=1.16.0",
+    "pymatching>=2.4.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "ruff>=0.4.0",
 ]
+
+[tool.setuptools]
+# Root is a meta-package (monorepo). Real code lives in
+# engines/quantum, packages/*, services/*, apps/* — each with its own
+# pyproject.toml. Disable auto-discovery so `pip install -e .` works.
+py-modules = []
+packages = []

@@ -7,13 +7,16 @@ name = "plaq-cli"
 version = "0.3.0"
 description = "Unified Command Line Interface for Plaq-OS"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "plaq-contracts",
-    "plaq-control-plane",
-    "plaq-sdk",
-    "plaq-quantum",
+    "plaq-contracts>=0.3.0",
+    "plaq-control-plane>=0.3.0",
+    "plaq-sdk>=0.3.0",
+    "plaq-quantum>=0.3.0",
 ]
 
 [project.scripts]
 plaq = "plaq_cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

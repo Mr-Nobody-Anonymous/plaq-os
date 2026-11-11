@@ -2,7 +2,6 @@
 Unit tests for the joint optimizer and Pareto frontier extraction.
 """
 
-import pytest
 try:
     from plaq_quantum.circuits import make_test_circuit
     from plaq_quantum.hardware import DEMO_HARDWARE, SUPERCONDUCTING_HERON
@@ -18,13 +17,12 @@ try:
     )
 except ImportError:
     from circuits import make_test_circuit
-    from hardware import DEMO_HARDWARE, SUPERCONDUCTING_HERON
+    from hardware import DEMO_HARDWARE
     from optimizer import (
     ExecutionPlan,
     CompilationCache,
     compute_compilation_fingerprint,
     evaluate_plan,
-    extract_pareto_frontier,
     generate_candidate_space,
     search_pareto_optimizer,
     compare_sequential_vs_joint,

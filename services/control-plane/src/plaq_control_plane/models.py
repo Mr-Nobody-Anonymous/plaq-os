@@ -8,15 +8,8 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from plaq_contracts import (
-    ApprovalRequest,
-    ApprovalStatus,
-    ArtifactRecord,
-    ArtifactType,
-    AuditRecord,
     PlanStep,
-    StepStatus,
     Task,
-    TaskStatus,
 )
 
 

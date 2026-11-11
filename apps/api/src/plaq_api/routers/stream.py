@@ -57,6 +57,17 @@ async def websocket_stream(
     broadcaster: EventBroadcaster = Depends(get_broadcaster),
 ):
     """Bidirectional WebSocket connection for live telemetry and task interaction."""
+    from plaq_api.auth import SESSION_COOKIE, is_authorized, resolve_api_key
+
+    api_key = resolve_api_key(generate=False)
+    if api_key and not is_authorized(
+        api_key,
+        authorization=websocket.headers.get("authorization", ""),
+        cookie=websocket.cookies.get(SESSION_COOKIE, ""),
+        query_token=websocket.query_params.get("token", ""),
+    ):
+        await websocket.close(code=4401)
+        return
     await websocket.accept()
     broadcaster.register_ws(websocket)
     try:

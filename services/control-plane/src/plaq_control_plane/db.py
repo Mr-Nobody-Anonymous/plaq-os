@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 import threading
 from contextlib import contextmanager
-from typing import Any, Generator, List, Optional, Union
+from typing import Generator, List, Optional, Union
 
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
@@ -150,14 +150,52 @@ CREATE INDEX IF NOT EXISTS idx_approvals_task_status ON approvals(task_id, statu
 CREATE INDEX IF NOT EXISTS idx_artifacts_task_id ON artifacts(task_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_step_id ON tool_calls(step_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_task_id ON tool_calls(task_id);
+
+-- 11. Background Jobs Table
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    action TEXT NOT NULL DEFAULT 'execute',
+    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+    result_json TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_task_id ON jobs(task_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+
+-- 12. Schema Migrations Registry
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    applied_at TEXT NOT NULL
+);
 """
+
+
+def resolve_db_path(raw: Optional[str] = None) -> str:
+    """Expand ``~`` and default to ``~/.plaq/plaq.db`` (Windows: ``%USERPROFILE%\\.plaq``)."""
+    value = raw if raw is not None else os.environ.get("PLAQ_DB_PATH")
+    if value:
+        path = Path(str(value)).expanduser()
+    else:
+        path = Path.home() / ".plaq" / "plaq.db"
+    if str(path) not in {":memory:"} and not str(path).startswith("file:"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
 
 
 class DatabaseEngine:
     """Manages SQLite connections with WAL mode, busy timeout, and thread-local isolation."""
 
     def __init__(self, db_path: Union[str, Path] = "plaq_control_plane.db", timeout: float = 10.0):
-        self.db_path = str(db_path)
+        raw = str(db_path)
+        if raw not in {":memory:"} and not raw.startswith("file:"):
+            raw = str(Path(raw).expanduser())
+        self.db_path = raw
         self.timeout = timeout
         self._local = threading.local()
         self._all_connections: List[sqlite3.Connection] = []
@@ -200,9 +238,12 @@ class DatabaseEngine:
         return self.get_connection()
 
     def init_schema(self) -> None:
-        """Initialize all 10 schema tables and performance indexes."""
+        """Initialize schema tables, indexes, and apply pending migrations."""
         conn = self.get_connection()
         conn.executescript(SCHEMA_SQL)
+        from plaq_control_plane.migrations import apply_migrations
+
+        apply_migrations(conn)
 
     @contextmanager
     def connection(self) -> Generator[sqlite3.Connection, None, None]:

@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 from pydantic import Field
 from plaq_contracts.common import PlaqBaseModel
 from plaq_contracts.tool import ToolResult
-from plaq_sandbox.guard import PathGuard, PathTraversalError
+from plaq_sandbox.guard import PathGuard
 
 
 class WorkspaceListParams(PlaqBaseModel):
@@ -255,7 +254,6 @@ def workspace_patch(params: WorkspacePatchParams, context: Any) -> ToolResult:
             new_content = content.replace(params.target, params.replacement)
         elif params.diff is not None:
             # Minimal unified diff applier for simple single-hunk diffs
-            lines = content.splitlines(keepends=True)
             diff_lines = params.diff.splitlines()
             hunk_removals = []
             hunk_additions = []

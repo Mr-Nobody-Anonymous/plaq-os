@@ -8,8 +8,8 @@ All parameters include documented literature provenance and validity scopes.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Tuple, Dict, Any, Optional
+from dataclasses import dataclass
+from typing import List, Tuple, Dict, Any
 import math
 
 
@@ -262,27 +262,59 @@ TRAPPED_ION_QUANTINUUM = TRAPPED_ION_FORTE
 NEUTRAL_ATOM_QUERA = NEUTRAL_ATOM_AQUILA
 
 
-def get_hardware_profile(name: str) -> HardwareModel:
-    """Retrieve calibrated hardware profile by preset or architecture name."""
+def get_hardware_profile(name: str, *, strict: bool = False) -> HardwareModel:
+    """Retrieve calibrated hardware profile by preset or architecture name.
+
+    Args:
+        name: Profile key, display name, or alias (case/``-``/space insensitive).
+        strict: When True, raise ``KeyError`` for unknown names instead of
+            silently falling back to :data:`DEMO_HARDWARE`. Default False
+            preserves backwards compatibility for existing callers.
+    """
     alias_map = {
+        # Superconducting (IBM Heron family)
         "heavy_hex_ibmq": SUPERCONDUCTING_HERON,
         "heavy_hex": SUPERCONDUCTING_HERON,
         "superconducting": SUPERCONDUCTING_HERON,
+        "ibm_heron": SUPERCONDUCTING_HERON,
+        "ibm_heron_like_superconducting": SUPERCONDUCTING_HERON,
+        "superconducting_heron": SUPERCONDUCTING_HERON,
+        "heron": SUPERCONDUCTING_HERON,
+        # Demo / linear
         "linear_nearest_neighbor": DEMO_HARDWARE,
         "linear": DEMO_HARDWARE,
         "demo": DEMO_HARDWARE,
+        "demo_illustrative": DEMO_HARDWARE,
+        # Trapped ion
         "trapped_ion": TRAPPED_ION_FORTE,
+        "trapped_ion_high_fidelity": TRAPPED_ION_FORTE,
+        "trapped_ion_quantinuum": TRAPPED_ION_FORTE,
         "ionq": TRAPPED_ION_FORTE,
+        "ionq_forte": TRAPPED_ION_FORTE,
         "quantinuum": TRAPPED_ION_FORTE,
+        # Neutral atom
         "neutral_atom": NEUTRAL_ATOM_AQUILA,
+        "neutral_atom_grid": NEUTRAL_ATOM_AQUILA,
         "aquila": NEUTRAL_ATOM_AQUILA,
         "quera": NEUTRAL_ATOM_AQUILA,
+        "quera_aquila": NEUTRAL_ATOM_AQUILA,
+        # qLDPC
         "qldpc": QLDPC_BIVARIATE_BICYCLE,
+        "ibm_qldpc_bivariate_bicycle": QLDPC_BIVARIATE_BICYCLE,
         "bivariate_bicycle": QLDPC_BIVARIATE_BICYCLE,
     }
+    # Also match by display name (e.g. "demo-illustrative", "ibm-heron-like-…")
+    for hw in HARDWARE_CATALOG.values():
+        alias_map[hw.name.lower().replace("-", "_").replace(" ", "_")] = hw
+
     normalized = name.lower().replace("-", "_").replace(" ", "_")
     if normalized in alias_map:
         return alias_map[normalized]
     if name in HARDWARE_CATALOG:
         return HARDWARE_CATALOG[name]
+    if strict:
+        known = sorted(set(alias_map) | set(HARDWARE_CATALOG))
+        raise KeyError(
+            f"Unknown hardware profile: {name!r}. Known profiles: {known}"
+        )
     return DEMO_HARDWARE

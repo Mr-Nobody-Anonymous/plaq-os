@@ -14,7 +14,6 @@ from pathlib import Path
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from plaq_contracts import ArtifactRecord, ArtifactType

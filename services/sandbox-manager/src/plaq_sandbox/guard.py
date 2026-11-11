@@ -22,7 +22,17 @@ class PathGuard:
 
     @staticmethod
     def resolve_safe_path(workspace_root: Union[str, Path], relative_path: str) -> Path:
-        """Resolve path and verify it stays inside workspace_root."""
+        """Resolve path and verify it stays inside workspace_root.
+
+        Defends against:
+        - ``../`` forward-slash traversal
+        - ``..\\`` backslash traversal (Windows-style, on any platform)
+        - mixed ``..\\/`` traversal
+        - URL-encoded traversal (``%2e%2e%2f``, ``%5c`` …)
+        - null-byte injection
+        - absolute paths (POSIX ``/etc/passwd`` and Windows ``C:\\…`` / ``\\\\share``)
+        - symlink escapes (via ``Path.resolve()`` + containment check)
+        """
         if not relative_path:
             return Path(workspace_root).resolve()
 
@@ -50,14 +60,31 @@ class PathGuard:
         if "\0" in decoded or "\x00" in decoded:
             raise PathTraversalError(f"Null byte detected in path: {relative_path!r}")
 
+        # Normalize Windows separators so backslash traversal is caught on
+        # every platform (on POSIX, Path("..\\..\\x") is a single filename).
+        normalized = decoded.replace("\\", "/")
+
+        # Reject Windows drive-letter absolute paths (C:/…, C:\…) and UNC
+        # shares (//host/share) even when running on POSIX — they must never
+        # be treated as relative paths inside the workspace.
+        stripped = normalized.lstrip()
+        if len(stripped) >= 2 and stripped[1] == ":" and stripped[0].isalpha():
+            raise PathTraversalError(
+                f"Absolute Windows path detected: '{relative_path!r}'"
+            )
+        if normalized.startswith("//"):
+            raise PathTraversalError(
+                f"UNC path detected: '{relative_path!r}'"
+            )
+
         root_canonical = Path(workspace_root).resolve()
-        
-        # Check if decoded is absolute path on Unix or Windows
-        p_decoded = Path(decoded)
+
+        # Check if normalized is an absolute POSIX path
+        p_decoded = Path(normalized)
         if p_decoded.is_absolute():
             target = p_decoded.resolve()
         else:
-            target = (root_canonical / decoded).resolve()
+            target = (root_canonical / normalized).resolve()
 
         try:
             target.relative_to(root_canonical)

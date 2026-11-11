@@ -1,0 +1,13 @@
+{
+  "version": "0.3.0",
+  "description": "Permission tiers for the Plaq agent tool registry. Mirrors packages/contracts/src/plaq_contracts/tool.py DEFAULT_TOOL_TIERS.",
+  "tiers": {
+    "read_only": ["workspace.list", "workspace.read"],
+    "workspace_write": ["workspace.patch", "workspace.write"],
+    "git_isolated": ["git.diff", "git.branch"],
+    "process_sandbox": ["terminal.run", "tests.run"],
+    "quantum_engine": ["quantum.compile", "quantum.estimate", "quantum.simulate"],
+    "privileged": ["artifacts.publish"]
+  },
+  "requires_approval": ["artifacts.publish", "terminal.run:rm -rf", "workspace.write:delete"]
+}

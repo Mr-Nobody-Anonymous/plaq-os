@@ -3,7 +3,9 @@
  */
 class PlaqWebSocket {
   constructor(url) {
-    this.url = url || `ws://${window.location.host}/ws/stream`;
+    // Use wss:// on HTTPS pages, ws:// otherwise (mixed-content safe).
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    this.url = url || `${proto}//${window.location.host}/ws/stream`;
     this.socket = null;
     this.listeners = new Map();
     this.reconnectTimer = null;

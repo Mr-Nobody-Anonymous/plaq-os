@@ -14,7 +14,7 @@ Scientifically grounded analytical and architectural cost engine:
 from __future__ import annotations
 import math
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 
 try:
     from .hardware import HardwareModel, DEMO_HARDWARE
@@ -22,7 +22,7 @@ except (ImportError, ValueError):
     try:
         from plaq_quantum.hardware import HardwareModel, DEMO_HARDWARE
     except ImportError:
-        from hardware import HardwareModel, DEMO_HARDWARE
+        from hardware import HardwareModel
 
 try:
     from qiskit import QuantumCircuit

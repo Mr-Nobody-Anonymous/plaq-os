@@ -23,6 +23,7 @@ MONOREPO_SOURCE_DIRS = [
     ROOT_DIR / "services" / "artifact-service" / "src",
     ROOT_DIR / "apps" / "api" / "src",
     ROOT_DIR / "apps" / "cli" / "src",
+    ROOT_DIR / "apps" / "mcp" / "src",
 ]
 
 def _apply_compatibility_shims() -> None:

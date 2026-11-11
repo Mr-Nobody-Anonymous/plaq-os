@@ -9,9 +9,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from plaq_control_plane.audit import AuditChainer, AuditTrailManager
+from plaq_control_plane.audit import AuditTrailManager
 from plaq_control_plane.db import DatabaseEngine
-from plaq_control_plane.redact import SecretRedactor
 from plaq_control_plane.state_machine import TaskStateMachine
 
 
@@ -63,6 +62,12 @@ class ControlPlaneRepository:
         self._audit_manager = AuditTrailManager(self.db)
 
     def close(self) -> None:
+        try:
+            from plaq_agent_runtime.queue import stop_queue_for
+
+            stop_queue_for(self)
+        except Exception:
+            pass
         if hasattr(self.db, "close"):
             self.db.close()
 
@@ -453,3 +458,105 @@ class ControlPlaneRepository:
                 active_statuses,
             )
             return [dict(r) for r in cursor.fetchall()]
+
+    # -----------------------------------------------------------------------
+    # Background Jobs
+    # -----------------------------------------------------------------------
+
+    def create_job(self, task_id: str, action: str = "execute") -> Dict[str, Any]:
+        """Enqueue a background job for a task."""
+        if self.get_task(task_id) is None:
+            raise KeyError(f"Task '{task_id}' not found.")
+        job_id = str(uuid.uuid4())
+        now = _utc_now_iso()
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO jobs (id, task_id, action, status, created_at)
+                VALUES (?, ?, ?, 'queued', ?)
+                """,
+                (job_id, task_id, action, now),
+            )
+        return self.get_job(job_id)  # type: ignore
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        with self.db.connection() as conn:
+            cursor = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_jobs(
+        self,
+        task_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        with self.db.connection() as conn:
+            query = "SELECT * FROM jobs WHERE 1=1"
+            params: List[Any] = []
+            if task_id:
+                query += " AND task_id = ?"
+                params.append(task_id)
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+            query += " ORDER BY created_at DESC"
+            cursor = conn.execute(query, params)
+            return [dict(r) for r in cursor.fetchall()]
+
+    def update_job(
+        self,
+        job_id: str,
+        status: Optional[str] = None,
+        result: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        job = self.get_job(job_id)
+        if not job:
+            raise KeyError(f"Job '{job_id}' not found.")
+        now = _utc_now_iso()
+        finished = now if status in {"completed", "failed", "cancelled"} else None
+        started = now if status == "running" and not job.get("started_at") else None
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = COALESCE(?, status),
+                    result_json = COALESCE(?, result_json),
+                    error = COALESCE(?, error),
+                    started_at = COALESCE(?, started_at),
+                    finished_at = COALESCE(?, finished_at)
+                WHERE id = ?
+                """,
+                (status, result, error, started, finished, job_id),
+            )
+        return self.get_job(job_id)  # type: ignore
+
+    def requeue_orphaned_jobs(self) -> int:
+        """Reset jobs stuck in ``running`` (crashed worker) back to ``queued``."""
+        orphans = self.list_jobs(status="running")
+        for job in orphans:
+            with self.db.transaction() as conn:
+                conn.execute(
+                    "UPDATE jobs SET status = 'queued', started_at = NULL WHERE id = ? AND status = 'running'",
+                    (job["id"],),
+                )
+        return len(orphans)
+
+    def claim_next_job(self) -> Optional[Dict[str, Any]]:
+        """Atomically claim the oldest queued job (BEGIN IMMEDIATE)."""
+        now = _utc_now_iso()
+        with self.db.transaction() as conn:
+            row = conn.execute(
+                "SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            job_id = row["id"]
+            cur = conn.execute(
+                "UPDATE jobs SET status = 'running', started_at = ? WHERE id = ? AND status = 'queued'",
+                (now, job_id),
+            )
+            if cur.rowcount == 0:
+                return None
+            claimed = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            return dict(claimed) if claimed else None

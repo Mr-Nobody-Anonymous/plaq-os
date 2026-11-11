@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from plaq_contracts.task import Task
 from plaq_control_plane.repository import ControlPlaneRepository
 from plaq_control_plane.state_machine import InvalidStateTransitionError
 from plaq_api.deps import get_repo, get_runtime
@@ -35,7 +34,7 @@ def create_task(
     goal_str = payload.goal.strip() if payload.goal else ""
     if not goal_str:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="Goal cannot be empty",
         )
     try:
@@ -46,7 +45,7 @@ def create_task(
         )
         return task_dict
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("")
@@ -132,3 +131,45 @@ def resume_task(
         }
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/{task_id}/run", status_code=status.HTTP_202_ACCEPTED)
+def run_task(
+    task_id: str,
+    background: bool = Query(default=True, description="Enqueue on the worker pool instead of blocking"),
+    runtime: AgentRuntime = Depends(get_runtime),
+    repo: ControlPlaneRepository = Depends(get_repo),
+) -> Dict[str, Any]:
+    """Execute a queued task, optionally on the background worker queue."""
+    task = repo.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task '{task_id}' not found")
+    if background:
+        from plaq_agent_runtime.queue import get_queue
+
+        queue = get_queue(repo, runtime)
+        job = queue.enqueue(task_id, action="execute")
+        return {"job": job, "mode": "background"}
+    try:
+        result = runtime.execute_task(task_id)
+        return {
+            "mode": "inline",
+            "task_id": result.task_id,
+            "status": result.status,
+            "summary": result.summary,
+            "error": result.error,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get("/{task_id}/jobs")
+def list_task_jobs(
+    task_id: str,
+    repo: ControlPlaneRepository = Depends(get_repo),
+) -> List[Dict[str, Any]]:
+    """List background jobs for a task."""
+    task = repo.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task '{task_id}' not found")
+    return repo.list_jobs(task_id=task_id)

@@ -9,7 +9,7 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from plaq_contracts.common import PlaqBaseModel
 from plaq_contracts.tool import ToolResult

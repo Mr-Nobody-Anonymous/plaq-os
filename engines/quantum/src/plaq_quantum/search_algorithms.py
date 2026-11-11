@@ -42,8 +42,7 @@ except (ImportError, ValueError):
             CompilationCache,
         )
     except ImportError:
-        from hardware import HardwareModel, DEMO_HARDWARE
-        from cost_model import CostEstimationResult
+        from hardware import HardwareModel
         from optimizer import (
             ExecutionPlan,
             EvaluatedPlan,
@@ -169,7 +168,7 @@ def search_greedy(
         plan = ExecutionPlan(
             optimization_level=opt,
             routing_method=curr_routing,
-            layout_method="sabre" if curr_routing == "sabre" else "trivial",
+            layout_method="sabre" if curr_routing == "sabre" else curr_layout,
             num_magic_factories=curr_factories,
             code_distance_strategy=curr_qec,
             decoder_architecture=curr_dec,

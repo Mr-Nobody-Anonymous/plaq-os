@@ -34,6 +34,13 @@ DEFAULT_TOOL_TIERS: Dict[str, PermissionTier] = {
     "quantum.compile": PermissionTier.QUANTUM_ENGINE,
     "quantum.estimate": PermissionTier.QUANTUM_ENGINE,
     "quantum.simulate": PermissionTier.QUANTUM_ENGINE,
+    "quantum.run": PermissionTier.QUANTUM_ENGINE,
+    "quantum.optimize": PermissionTier.QUANTUM_ENGINE,
+    "quantum.baselines": PermissionTier.QUANTUM_ENGINE,
+    "quantum.threshold": PermissionTier.QUANTUM_ENGINE,
+    "quantum.qasm": PermissionTier.QUANTUM_ENGINE,
+    "quantum.workloads": PermissionTier.QUANTUM_ENGINE,
+    "quantum.hardware": PermissionTier.QUANTUM_ENGINE,
     "artifacts.publish": PermissionTier.PRIVILEGED,
 }
 
