@@ -1,0 +1,21 @@
+.git
+.github
+.agents
+.venv
+.env
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+**/.mypy_cache
+results/*.png
+results/*.html
+results/*.json
+results/*.csv
+Unselected files
+*.md
+!README.md
+!INSTALL.md

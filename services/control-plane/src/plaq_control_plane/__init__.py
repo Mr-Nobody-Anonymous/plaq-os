@@ -10,7 +10,9 @@ from .db import (
     ControlPlaneDatabase,
     DatabaseEngine,
     SCHEMA_SQL,
+    resolve_db_path,
 )
+from .migrations import apply_migrations, MIGRATIONS
 from .models import (
     StepDTO,
     TaskDTO,
@@ -37,13 +39,16 @@ from .state_machine import (
     TaskStateMachine,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 __all__ = [
     # DB
     "DatabaseEngine",
     "ControlPlaneDatabase",
     "SCHEMA_SQL",
+    "resolve_db_path",
+    "apply_migrations",
+    "MIGRATIONS",
     # State Machine
     "TaskStateMachine",
     "InvalidStateTransitionError",

@@ -5,7 +5,7 @@ from .manager import SandboxManager
 from .runner import ProcessResult, ProcessRunner, kill_process_tree, run_command
 from .worktree import WorktreeError, WorktreeInfo, WorktreeManager
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "PathGuard",

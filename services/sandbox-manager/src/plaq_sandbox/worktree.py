@@ -8,12 +8,11 @@ import re
 import shutil
 import stat
 import subprocess
-import sys
 import time
 from typing import Any, Dict, List, Optional, Union
 
 from plaq_contracts.common import PlaqBaseModel
-from .guard import PathGuard, PathTraversalError
+from .guard import PathGuard
 
 
 class WorktreeError(RuntimeError):

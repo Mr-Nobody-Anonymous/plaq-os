@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
+
+from dataclasses import asdict
 
 import plaq_quantum.circuits as pq_circuits
 import plaq_quantum.cost_model as pq_cost_model
 import plaq_quantum.hardware as pq_hardware
 import plaq_quantum.optimizer as pq_optimizer
 import plaq_quantum.baselines as pq_baselines
+import plaq_quantum.stim_bridge as pq_stim
+import plaq_quantum.simulation as pq_sim
+import plaq_quantum.workloads as pq_workloads
 
 router = APIRouter(prefix="/api/v1/quantum", tags=["Quantum"])
 
@@ -93,6 +98,7 @@ def estimate_quantum(payload: QuantumEstimatePayload) -> Dict[str, Any]:
         "feasibility_reason": cost_res.feasibility_reason,
         "spacetime_volume": cost_res.spacetime_volume,
         "hardware_profile": hw.name,
+        "distance_solver_feasible": dist_res.feasible,
     }
 
 
@@ -133,16 +139,20 @@ def optimize_quantum(payload: QuantumOptimizePayload) -> Dict[str, Any]:
     hw = pq_hardware.get_hardware_profile(payload.hardware_profile or "demo-illustrative")
 
     try:
-        pareto_points = pq_optimizer.find_pareto_frontier(
+        _, pareto_frontier = pq_optimizer.search_pareto_optimizer(
             circuit=circuit,
             hardware=hw,
-            max_evaluations=payload.max_evaluations or 15,
+            target_epsilon=1e-3,
+            candidate_limit=payload.max_evaluations or 15,
         )
         return {
             "workload": payload.circuit_name,
             "hardware": hw.name,
-            "pareto_points_count": len(pareto_points),
-            "pareto_frontier": [p.to_dict() if hasattr(p, "to_dict") else dict(p) for p in pareto_points],
+            "pareto_points_count": len(pareto_frontier),
+            "pareto_frontier": [
+                p.to_row() if hasattr(p, "to_row") else (p.to_dict() if hasattr(p, "to_dict") else dict(p))
+                for p in pareto_frontier
+            ],
         }
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
@@ -152,16 +162,114 @@ def optimize_quantum(payload: QuantumOptimizePayload) -> Dict[str, Any]:
 def evaluate_baselines() -> Dict[str, Any]:
     """Execute 4-baselines co-design comparison protocol."""
     try:
-        results = pq_baselines.run_baselines_comparison()
-        return {"status": "ok", "comparisons": results}
+        circuit = pq_circuits.make_test_circuit(n_qubits=4)
+        hw = pq_hardware.get_hardware_profile("demo-illustrative")
+        records = pq_baselines.run_four_baselines_protocol(
+            circuit=circuit,
+            hardware=hw,
+            target_epsilon=1e-3,
+        )
+        return {"status": "ok", "comparisons": [asdict(r) for r in records]}
     except Exception as exc:
-        # Fallback to simulated baseline report
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
+class QuantumSimulatePayload(BaseModel):
+    code_distance: int = Field(default=3)
+    physical_error_rate: float = Field(default=0.001)
+    shots: int = Field(default=200)
+    seed: int = Field(default=42)
+    rounds: Optional[int] = Field(default=None)
+
+
+class QuantumRunPayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    shots: int = Field(default=0)
+    seed: int = Field(default=42)
+    compute_energy: bool = Field(default=False)
+
+
+class QuantumThresholdPayload(BaseModel):
+    distances: Optional[List[int]] = None
+    physical_error_rates: Optional[List[float]] = None
+    shots_per_point: int = Field(default=40)
+
+
+class QuantumQasmPayload(BaseModel):
+    qasm: str
+
+
+@router.post("/simulate")
+def simulate_surface_code(payload: QuantumSimulatePayload) -> Dict[str, Any]:
+    """Stim + PyMatching rotated surface-code Monte Carlo."""
+    try:
+        res = pq_stim.run_surface_code_simulation(
+            code_distance=payload.code_distance,
+            physical_error_rate=payload.physical_error_rate,
+            shots=payload.shots,
+            rounds=payload.rounds,
+            seed=payload.seed,
+        )
+        return asdict(res)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/run")
+def run_circuit(payload: QuantumRunPayload) -> Dict[str, Any]:
+    """Statevector or shot-based circuit simulation."""
+    try:
+        res = pq_sim.run_circuit_simulation(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            shots=payload.shots,
+            seed=payload.seed,
+            compute_energy=payload.compute_energy,
+        )
+        return res.to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/threshold")
+def threshold_study(payload: QuantumThresholdPayload) -> Dict[str, Any]:
+    """Surface-code threshold sweep."""
+    try:
+        results = pq_stim.run_threshold_study(
+            distances=payload.distances or [3],
+            physical_error_rates=payload.physical_error_rates or [0.001, 0.01],
+            shots_per_point=payload.shots_per_point,
+        )
+        return {"samples": [asdict(r) for r in results]}
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/qasm")
+def compile_qasm(payload: QuantumQasmPayload) -> Dict[str, Any]:
+    """Compile OpenQASM 2.0 and extract metrics."""
+    try:
+        circuit = pq_workloads.load_qasm(payload.qasm)
+        metrics = pq_cost_model.extract_circuit_metrics(circuit)
         return {
-            "status": "ok",
-            "comparisons": {
-                "Sequential Baseline": {"physical_qubits": 5036, "runtime_ms": 9.58, "cost_score": 9824},
-                "Standard Mapping": {"physical_qubits": 5420, "runtime_ms": 6.12, "cost_score": 8450},
-                "Independent FT Layout": {"physical_qubits": 5600, "runtime_ms": 4.50, "cost_score": 7900},
-                "Plaq Joint Plan": {"physical_qubits": 5836, "runtime_ms": 3.85, "cost_score": 7761},
-            },
+            "num_qubits": metrics.num_qubits,
+            "depth": metrics.depth,
+            "t_count": metrics.t_ops,
+            "t_depth": metrics.t_depth,
+            "total_ops": metrics.total_ops,
         }
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get("/workloads")
+def get_workloads() -> Dict[str, Any]:
+    return {"workloads": pq_workloads.list_workloads()}
+
+
+@router.get("/hardware")
+def get_hardware() -> Dict[str, Any]:
+    return {"profiles": pq_workloads.list_hardware_profiles()}

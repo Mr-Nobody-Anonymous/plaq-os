@@ -13,11 +13,11 @@ Features compilation caching for ultra-fast, scalable parameter space exploratio
 """
 
 from __future__ import annotations
+import hashlib
 import math
 import random
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Tuple, Optional, Set
-import pandas as pd
+from dataclasses import dataclass
+from typing import List, Dict, Any, Tuple, Optional
 
 try:
     from .hardware import HardwareModel, DEMO_HARDWARE
@@ -37,7 +37,7 @@ except (ImportError, ValueError):
             CircuitMetrics,
         )
     except ImportError:
-        from hardware import HardwareModel, DEMO_HARDWARE
+        from hardware import HardwareModel
         from cost_model import (
             extract_circuit_metrics,
             evaluate_fault_tolerant_cost,
@@ -115,8 +115,6 @@ DECODER_LATENCY_SPECS: Dict[str, float] = {
     "distributed_cpu": 1200.0,  # Standard networked CPU (causes cycle stall)
 }
 
-
-import hashlib
 
 def compute_compilation_fingerprint(
     circuit: QuantumCircuit,

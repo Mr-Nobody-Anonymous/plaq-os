@@ -2,7 +2,6 @@
 Unit tests for circuit generation.
 """
 
-import pytest
 try:
     from plaq_quantum.circuits import (
         make_test_circuit,

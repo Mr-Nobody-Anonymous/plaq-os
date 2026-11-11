@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import inspect
 from pathlib import Path
 import subprocess
 import time
@@ -11,9 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 
 from pydantic import BaseModel, ValidationError
 
-from plaq_contracts.common import PlaqBaseModel
 from plaq_contracts.tool import (
-    DEFAULT_TOOL_TIERS,
     PermissionTier,
     ToolDefinition,
     ToolRequest,
@@ -45,12 +42,26 @@ from plaq_agent_runtime.tools.terminal_tools import (
     tests_run,
 )
 from plaq_agent_runtime.tools.quantum_tools import (
+    QuantumBaselinesParams,
     QuantumCompileParams,
     QuantumEstimateParams,
+    QuantumHardwareParams,
+    QuantumOptimizeParams,
+    QuantumQasmParams,
+    QuantumRunParams,
     QuantumSimulateParams,
+    QuantumThresholdParams,
+    QuantumWorkloadsParams,
+    quantum_baselines,
     quantum_compile,
     quantum_estimate,
+    quantum_hardware,
+    quantum_optimize,
+    quantum_qasm,
+    quantum_run,
     quantum_simulate,
+    quantum_threshold,
+    quantum_workloads,
 )
 from plaq_agent_runtime.tools.artifact_tools import (
     ArtifactPublishParams,
@@ -262,7 +273,7 @@ class ToolRegistry:
 
 
 def create_default_tool_registry() -> ToolRegistry:
-    """Instantiate and populate ToolRegistry with all 12 standard Plaq-OS tools."""
+    """Instantiate and populate ToolRegistry with workspace, git, process, quantum, and privileged tools."""
     registry = ToolRegistry()
 
     # 1. Read-Only Tier
@@ -394,6 +405,83 @@ def create_default_tool_registry() -> ToolRegistry:
         ),
         quantum_simulate,
         QuantumSimulateParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.run",
+            description="Statevector or shot-based circuit simulation (probabilities, counts, optional energy).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumRunParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_run,
+        QuantumRunParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.optimize",
+            description="Pareto co-design search over compiler, factories, decoder, and code-distance strategies.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumOptimizeParams.model_json_schema(),
+            timeout_sec=120.0,
+        ),
+        quantum_optimize,
+        QuantumOptimizeParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.baselines",
+            description="Run the 4-baselines co-design protocol (raw / Qiskit-L3 / decoupled / joint).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumBaselinesParams.model_json_schema(),
+            timeout_sec=120.0,
+        ),
+        quantum_baselines,
+        QuantumBaselinesParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.threshold",
+            description="Stim surface-code threshold sweep across distances and physical error rates.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumThresholdParams.model_json_schema(),
+            timeout_sec=180.0,
+        ),
+        quantum_threshold,
+        QuantumThresholdParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.qasm",
+            description="Compile an OpenQASM 2.0 body and extract circuit metrics.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumQasmParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_qasm,
+        QuantumQasmParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.workloads",
+            description="List named quantum workloads an agent can compile, simulate, or optimize.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumWorkloadsParams.model_json_schema(),
+            timeout_sec=5.0,
+        ),
+        quantum_workloads,
+        QuantumWorkloadsParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.hardware",
+            description="List calibrated hardware profiles (superconducting, trapped ion, neutral atom, qLDPC).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumHardwareParams.model_json_schema(),
+            timeout_sec=5.0,
+        ),
+        quantum_hardware,
+        QuantumHardwareParams,
     )
 
     # 6. Privileged Tier

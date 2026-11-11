@@ -1,0 +1,11 @@
+# Platform-only deps (no C++ / Stim). Installs on every OS with a Python wheel.
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+scipy>=1.10.0
+pydantic>=2.0.0
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+httpx>=0.25.0
+websockets>=12.0
+qiskit>=1.0.0

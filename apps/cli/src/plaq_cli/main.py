@@ -7,9 +7,28 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from plaq_sdk.client import PlaqClient
+
+
+def configure_stdio() -> None:
+    """Force UTF-8 stdio on Windows consoles so quantum Unicode prints don't crash."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    if sys.platform == "win32":
+        os.environ.setdefault("PYTHONUTF8", "1")
+        os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+            ctypes.windll.kernel32.SetConsoleCP(65001)
+        except Exception:
+            pass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,6 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
     task_resume.add_argument("--denied", dest="approved", action="store_false", help="Reject pending gate")
     task_resume.add_argument("--json", action="store_true", help="Output raw JSON")
 
+    # plaq task run <task_id> [--wait] [--json]
+    task_run = task_sub.add_parser("run", help="Execute a queued task (background worker by default)")
+    task_run.add_argument("task_id", help="Target task ID")
+    task_run.add_argument("--wait", action="store_true", help="Block until the job finishes")
+    task_run.add_argument("--inline", action="store_true", help="Run in-process instead of the queue")
+    task_run.add_argument("--json", action="store_true", help="Output raw JSON")
+
     # 2. quantum group
     quantum_parser = subparsers.add_parser("quantum", help="Quantum circuit synthesis, estimation, and optimization")
     quantum_sub = quantum_parser.add_subparsers(dest="subcommand", help="Quantum actions")
@@ -83,6 +109,28 @@ def build_parser() -> argparse.ArgumentParser:
     q_benchmark.add_argument("--hardware", default="demo-illustrative", help="Hardware profile")
     q_benchmark.add_argument("--json", action="store_true", help="Output raw JSON")
 
+    # plaq quantum optimize [--hardware H] [--max-evals N] [--json]
+    q_optimize = quantum_sub.add_parser("optimize", help="Run Pareto co-design optimization")
+    q_optimize.add_argument("--hardware", default="demo-illustrative", help="Hardware profile")
+    q_optimize.add_argument("--max-evals", type=int, default=15, help="Candidate evaluation budget")
+    q_optimize.add_argument("--json", action="store_true", help="Output raw JSON")
+
+    q_sim = quantum_sub.add_parser("simulate", help="Stim surface-code Monte Carlo")
+    q_sim.add_argument("--distance", type=int, default=3)
+    q_sim.add_argument("--shots", type=int, default=200)
+    q_sim.add_argument("--error-rate", type=float, default=0.001)
+    q_sim.add_argument("--json", action="store_true")
+
+    q_run = quantum_sub.add_parser("run", help="Circuit-level statevector / shot simulation")
+    q_run.add_argument("workload", nargs="?", default="bell")
+    q_run.add_argument("--qubits", type=int, default=None)
+    q_run.add_argument("--shots", type=int, default=0)
+    q_run.add_argument("--energy", action="store_true")
+    q_run.add_argument("--json", action="store_true")
+
+    quantum_sub.add_parser("workloads", help="List named quantum workloads")
+    quantum_sub.add_parser("hardware", help="List calibrated hardware profiles")
+
     # 3. workspace group
     workspace_parser = subparsers.add_parser("workspace", help="Inspect and configure workbench workspaces")
     workspace_sub = workspace_parser.add_subparsers(dest="subcommand", help="Workspace actions")
@@ -96,21 +144,55 @@ def build_parser() -> argparse.ArgumentParser:
 
     # 4. serve group
     serve_parser = subparsers.add_parser("serve", help="Start the Plaq-OS FastAPI backend & Workbench server")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host address")
+    serve_parser.add_argument("--host", default=None, help="Bind host (default 127.0.0.1, or 0.0.0.0 in Docker)")
     serve_parser.add_argument("--port", type=int, default=8000, help="Bind port number")
     serve_parser.add_argument("--reload", action="store_true", help="Enable hot reload")
+
+    # 5. mcp — Model Context Protocol stdio server
+    subparsers.add_parser("mcp", help="Start the Plaq-OS MCP server on stdio (for Claude Desktop / Cursor)")
+
+    # 6. job group
+    job_parser = subparsers.add_parser("job", help="Inspect background agent jobs")
+    job_sub = job_parser.add_subparsers(dest="subcommand")
+    job_status = job_sub.add_parser("status", help="Show a job by id")
+    job_status.add_argument("job_id")
+    job_status.add_argument("--json", action="store_true")
+    job_list = job_sub.add_parser("list", help="List jobs")
+    job_list.add_argument("--task", default=None, help="Filter by task id")
+    job_list.add_argument("--json", action="store_true")
+
+    # 7. worker — dedicated SQLite job drain (can run next to `plaq serve`)
+    worker_parser = subparsers.add_parser(
+        "worker",
+        help="Run a background worker that drains the SQLite job queue",
+    )
+    worker_parser.add_argument("--poll", type=float, default=0.25, help="Poll interval seconds")
+    worker_parser.add_argument("--workers", type=int, default=1, help="Worker threads")
+
+    # 8. db — schema migrations
+    db_parser = subparsers.add_parser("db", help="Control-plane SQLite migrations")
+    db_sub = db_parser.add_subparsers(dest="subcommand")
+    db_sub.add_parser("migrate", help="Apply pending schema migrations")
+    db_sub.add_parser("status", help="Show applied migration versions")
+
+    doctor = subparsers.add_parser("doctor", help="Diagnose Python, OS, packages, database, and auth")
+    doctor.add_argument("--json", action="store_true")
+
+    init = subparsers.add_parser("init", help="Create ~/.plaq, apply migrations, seed an API key")
+    init.add_argument("--json", action="store_true")
 
     return parser
 
 
+def _db_path() -> str:
+    from plaq_control_plane.db import resolve_db_path
+
+    return resolve_db_path()
+
+
 def get_client() -> PlaqClient:
     """Instantiate a local PlaqClient configured with default database."""
-    db_path = os.environ.get("PLAQ_DB_PATH")
-    if not db_path:
-        home_db = Path.home() / ".plaq" / "plaq.db"
-        home_db.parent.mkdir(parents=True, exist_ok=True)
-        db_path = str(home_db)
-    return PlaqClient.local_client(db_path=db_path)
+    return PlaqClient.local_client(db_path=_db_path())
 
 
 def handle_task(args: argparse.Namespace) -> int:
@@ -123,7 +205,7 @@ def handle_task(args: argparse.Namespace) -> int:
         if args.json:
             print(task.model_dump_json(indent=2))
         else:
-            print(f"Task created successfully.")
+            print("Task created successfully.")
             print(f"  ID:     {task.id}")
             print(f"  Status: {task.status}")
             print(f"  Goal:   {task.goal}")
@@ -151,7 +233,7 @@ def handle_task(args: argparse.Namespace) -> int:
         if args.json:
             print(task.model_dump_json(indent=2))
         else:
-            print(f"Task Details:")
+            print("Task Details:")
             print(f"  ID:         {task.id}")
             print(f"  Status:     {task.status}")
             print(f"  Goal:       {task.goal}")
@@ -186,8 +268,75 @@ def handle_task(args: argparse.Namespace) -> int:
             print(f"Task '{args.task_id}' cancelled.")
         return 0
 
+    elif sub == "resume":
+        # Resume a blocked task: decide the pending approval, then re-run.
+        from plaq_control_plane.repository import ControlPlaneRepository
+
+        db_path = _db_path()
+        repo = ControlPlaneRepository(db_path)
+        try:
+            pending = repo.list_approvals(task_id=args.task_id)
+            pending = [a for a in pending if a.get("status") == "pending"]
+            if pending:
+                repo.decide_approval(
+                    approval_id=pending[0]["id"],
+                    approved=bool(args.approved),
+                    reason="CLI resume",
+                    decided_by="cli",
+                )
+            from plaq_agent_runtime.loop import AgentRuntime
+
+            runtime = AgentRuntime(repository=repo)
+            result = runtime.resume_task(args.task_id)
+            if args.json:
+                print(json.dumps({
+                    "task_id": result.task_id,
+                    "status": result.status,
+                    "summary": result.summary,
+                    "artifacts": result.artifacts,
+                }, indent=2))
+            else:
+                print(f"Task '{args.task_id}' resumed -> {result.status}")
+                if result.summary:
+                    print(f"  Summary: {result.summary}")
+        finally:
+            repo.close()
+        return 0
+
+    elif sub == "run":
+        from plaq_control_plane.repository import ControlPlaneRepository
+        from plaq_agent_runtime.loop import AgentRuntime
+        from plaq_agent_runtime.queue import BackgroundTaskQueue
+
+        db_path = _db_path()
+        repo = ControlPlaneRepository(db_path)
+        try:
+            runtime = AgentRuntime(repository=repo)
+            if args.inline:
+                result = runtime.execute_task(args.task_id)
+                payload = {
+                    "task_id": result.task_id,
+                    "status": result.status,
+                    "summary": result.summary,
+                    "error": result.error,
+                    "mode": "inline",
+                }
+            else:
+                queue = BackgroundTaskQueue(repo, runtime)
+                job = queue.enqueue(args.task_id)
+                if args.wait:
+                    job = queue.wait(job["id"], timeout=300)
+                payload = {"mode": "background", "job": job}
+            if args.json:
+                print(json.dumps(payload, indent=2, default=str))
+            else:
+                print(json.dumps(payload, indent=2, default=str))
+        finally:
+            repo.close()
+        return 0
+
     else:
-        print("Usage: plaq task [create|list|status|logs|cancel|resume]", file=sys.stderr)
+        print("Usage: plaq task [create|list|status|logs|cancel|resume|run]", file=sys.stderr)
         return 1
 
 
@@ -233,6 +382,8 @@ def handle_quantum(args: argparse.Namespace) -> int:
             qubits=args.qubits,
             physical_error_rate=args.error_rate,
             error_budget=args.error_budget,
+            circuit_depth=args.depth,
+            hardware_profile=args.hardware,
         )
         if args.json:
             print(res.model_dump_json(indent=2))
@@ -240,6 +391,7 @@ def handle_quantum(args: argparse.Namespace) -> int:
             print("Plaq-OS Fault-Tolerant Resource Estimation:")
             print(f"  Logical Qubits:       {res.num_qubits}")
             print(f"  Min Code Distance d:  {res.code_distance}")
+            print(f"  Physical Qubits:      {res.physical_qubits}")
             print(f"  Physical Error Rate:  {args.error_rate}")
             print(f"  T-Gate Synthesis:     {res.t_count}")
             print(f"  Feasible:             {res.feasible}")
@@ -248,20 +400,86 @@ def handle_quantum(args: argparse.Namespace) -> int:
 
     elif sub == "benchmark":
         import plaq_quantum as pq
-        results = pq.baselines.run_baselines_comparison()
+        from dataclasses import asdict
+
+        hw = pq.hardware.get_hardware_profile(args.hardware)
+        circuit = pq.circuits.make_test_circuit(n_qubits=4)
+        records = pq.baselines.run_four_baselines_protocol(
+            circuit=circuit,
+            hardware=hw,
+            target_epsilon=1e-3,
+        )
+        results = [asdict(r) for r in records]
         if args.json:
             print(json.dumps(results, indent=2))
         else:
             print("Plaq-OS Four-Baselines Co-Design Protocol:")
-            for name, metrics in results.items():
-                print(f"  Baseline: {name}")
-                print(f"    Physical Qubits: {metrics.get('physical_qubits')}")
-                print(f"    Runtime:         {metrics.get('runtime_ms')} ms")
-                print(f"    Cost Score:      {metrics.get('cost_score')}")
+            for r in records:
+                print(f"  [{r.baseline_id}] {r.baseline_name}")
+                print(f"    Physical Qubits: {r.physical_qubits}")
+                print(f"    Runtime:         {r.runtime_seconds * 1000:.3f} ms")
+                print(f"    Cost Score:      {r.total_cost_score:.1f}")
+        return 0
+
+    elif sub == "optimize":
+        import plaq_quantum as pq
+
+        hw = pq.hardware.get_hardware_profile(args.hardware)
+        circuit = pq.circuits.make_bernstein_vazirani_circuit(bitstring="1111")
+        _, pareto = pq.optimizer.search_pareto_optimizer(
+            circuit=circuit,
+            hardware=hw,
+            target_epsilon=1e-3,
+            candidate_limit=args.max_evals,
+        )
+        rows = [p.to_row() for p in pareto]
+        if args.json:
+            print(json.dumps(rows, indent=2))
+        else:
+            print(f"Pareto frontier: {len(pareto)} non-dominated plans (hardware={hw.name})")
+            for i, r in enumerate(rows):
+                print(f"  P{i+1}: qubits={r.get('physical_qubits')} runtime_s={r.get('runtime_s')} d={r.get('code_distance')}")
+        return 0
+
+    elif sub == "simulate":
+        import plaq_quantum as pq
+        from dataclasses import asdict
+
+        res = pq.stim_bridge.run_surface_code_simulation(
+            code_distance=args.distance,
+            physical_error_rate=args.error_rate,
+            shots=args.shots,
+        )
+        data = asdict(res)
+        print(json.dumps(data, indent=2) if args.json else json.dumps(data, indent=2))
+        return 0
+
+    elif sub == "run":
+        import plaq_quantum as pq
+
+        res = pq.simulation.run_circuit_simulation(
+            workload=args.workload,
+            qubits=args.qubits,
+            shots=args.shots,
+            compute_energy=args.energy,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "workloads":
+        import plaq_quantum as pq
+
+        print(json.dumps(pq.workloads.list_workloads(), indent=2))
+        return 0
+
+    elif sub == "hardware":
+        import plaq_quantum as pq
+
+        print(json.dumps(pq.workloads.list_hardware_profiles(), indent=2))
         return 0
 
     else:
-        print("Usage: plaq quantum [compile|estimate|benchmark]", file=sys.stderr)
+        print("Usage: plaq quantum [compile|estimate|benchmark|optimize|simulate|run|workloads|hardware]", file=sys.stderr)
         return 1
 
 
@@ -292,16 +510,116 @@ def handle_workspace(args: argparse.Namespace) -> int:
         return 1
 
 
+def _default_bind_host() -> str:
+    if os.environ.get("PLAQ_HOST"):
+        return os.environ["PLAQ_HOST"]
+    if os.environ.get("PLAQ_BIND_ALL") == "1" or Path("/.dockerenv").exists():
+        return "0.0.0.0"
+    return "127.0.0.1"
+
+
 def handle_serve(args: argparse.Namespace) -> int:
     """Handle plaq serve subcommand."""
     import uvicorn
-    print(f"Starting Plaq-OS Server on http://{args.host}:{args.port} ...")
-    uvicorn.run("plaq_api.app:app", host=args.host, port=args.port, reload=args.reload)
+    from plaq_api.auth import describe_auth
+
+    host = args.host or _default_bind_host()
+    _, auth_msg = describe_auth()
+    print(f"Starting Plaq-OS Server on http://{host}:{args.port} ...")
+    print(auth_msg)
+    uvicorn.run("plaq_api.app:app", host=host, port=args.port, reload=args.reload)
     return 0
+
+
+def handle_mcp(args: argparse.Namespace) -> int:
+    """Start the stdio MCP server (stdout is the protocol stream)."""
+    from plaq_mcp.server import run_stdio_server
+
+    print("Plaq-OS MCP server listening on stdio", file=sys.stderr)
+    run_stdio_server()
+    return 0
+
+
+def handle_job(args: argparse.Namespace) -> int:
+    """Inspect background jobs."""
+    from plaq_control_plane.repository import ControlPlaneRepository
+
+    db_path = _db_path()
+    repo = ControlPlaneRepository(db_path)
+    try:
+        sub = getattr(args, "subcommand", None)
+        if sub == "status":
+            job = repo.get_job(args.job_id)
+            if not job:
+                print(f"Error: Job '{args.job_id}' not found.", file=sys.stderr)
+                return 1
+            print(json.dumps(job, indent=2, default=str))
+            return 0
+        if sub == "list":
+            jobs = repo.list_jobs(task_id=args.task)
+            print(json.dumps(jobs, indent=2, default=str))
+            return 0
+        print("Usage: plaq job [status|list]", file=sys.stderr)
+        return 1
+    finally:
+        repo.close()
+
+
+def handle_worker(args: argparse.Namespace) -> int:
+    """Run a dedicated job worker until interrupted."""
+    from plaq_agent_runtime.loop import AgentRuntime
+    from plaq_agent_runtime.queue import BackgroundTaskQueue
+    from plaq_control_plane.repository import ControlPlaneRepository
+
+    repo = ControlPlaneRepository(_db_path())
+    runtime = AgentRuntime(repository=repo)
+    queue = BackgroundTaskQueue(
+        repository=repo,
+        runtime=runtime,
+        max_workers=args.workers,
+        poll_interval=args.poll,
+    )
+    n = queue.recover_orphans()
+    queue.start()
+    print(f"Plaq worker online (db={_db_path()}, recovered={n}, threads={args.workers})", flush=True)
+    try:
+        while True:
+            import time
+
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Stopping worker...", flush=True)
+        queue.stop()
+        repo.close()
+    return 0
+
+
+def handle_db(args: argparse.Namespace) -> int:
+    """Apply or inspect control-plane migrations."""
+    from plaq_control_plane.db import DatabaseEngine
+    from plaq_control_plane.migrations import MIGRATIONS, applied_versions, apply_migrations
+
+    engine = DatabaseEngine(_db_path())
+    try:
+        sub = getattr(args, "subcommand", None)
+        applied = applied_versions(engine.conn)
+        latest = [v for v, _, _ in MIGRATIONS]
+        if sub == "status":
+            print(json.dumps({"applied": applied, "available": latest, "db": _db_path()}, indent=2))
+            return 0
+        if sub == "migrate":
+            newly = apply_migrations(engine.conn)
+            print(json.dumps({"applied_now": newly, "applied": applied_versions(engine.conn)}, indent=2))
+            return 0
+        print("Usage: plaq db [migrate|status]", file=sys.stderr)
+        return 1
+    finally:
+        engine.close()
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Main CLI entrypoint."""
+    configure_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -317,6 +635,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         return handle_workspace(args)
     elif args.command == "serve":
         return handle_serve(args)
+    elif args.command == "mcp":
+        return handle_mcp(args)
+    elif args.command == "job":
+        return handle_job(args)
+    elif args.command == "worker":
+        return handle_worker(args)
+    elif args.command == "db":
+        return handle_db(args)
+    elif args.command == "doctor":
+        from plaq_cli.doctor import run_doctor
+
+        return run_doctor(as_json=bool(getattr(args, "json", False)))
+    elif args.command == "init":
+        from plaq_cli.doctor import run_init
+
+        return run_init(as_json=bool(getattr(args, "json", False)))
     else:
         parser.print_help()
         return 1

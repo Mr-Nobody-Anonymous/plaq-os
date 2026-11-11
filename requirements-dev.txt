@@ -1,0 +1,10 @@
+# Development / test dependencies. Install with:
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pip install -e ./packages/contracts -e ./packages/sdk-python \
+#     -e ./services/control-plane -e ./services/sandbox-manager \
+#     -e ./services/model-gateway -e ./services/artifact-service \
+#     -e ./services/agent-runtime -e ./engines/quantum \
+#     -e ./apps/api -e ./apps/cli -e ./apps/mcp
+pytest>=7.0.0
+pytest-cov>=4.0.0
+ruff>=0.4.0

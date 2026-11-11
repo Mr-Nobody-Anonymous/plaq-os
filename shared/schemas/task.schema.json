@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Plaq Task",
+  "type": "object",
+  "required": ["id", "goal", "status"],
+  "properties": {
+    "id": {"type": "string"},
+    "goal": {"type": "string", "minLength": 1},
+    "workspace_path": {"type": "string"},
+    "status": {
+      "type": "string",
+      "enum": ["queued", "planning", "running", "verifying", "completed", "failed", "cancelled", "blocked"]
+    }
+  }
+}

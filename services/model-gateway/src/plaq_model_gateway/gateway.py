@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from plaq_contracts.step import PlanDefinition, PlanStep
 from plaq_contracts.tool import ToolResult
-from plaq_model_gateway.providers import BaseModelProvider, DeterministicPlanner
+from plaq_model_gateway.providers import BaseModelProvider, DeterministicPlanner, LLMProvider
+
+
+def _default_provider() -> BaseModelProvider:
+    """Return LLMProvider when OPENAI_API_KEY is set, else DeterministicPlanner."""
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if api_key:
+        return LLMProvider(
+            api_key=api_key,
+            model_name=os.environ.get("PLAQ_MODEL", "gpt-4o"),
+            base_url=os.environ.get("OPENAI_BASE_URL") or None,
+        )
+    return DeterministicPlanner()
 
 
 class ModelGateway:
@@ -14,9 +27,11 @@ class ModelGateway:
 
     def __init__(self, default_provider: Optional[BaseModelProvider] = None):
         self._providers: Dict[str, BaseModelProvider] = {}
-        default = default_provider or DeterministicPlanner()
+        default = default_provider or _default_provider()
         self.register_provider("default", default)
-        self.register_provider("deterministic", default)
+        self.register_provider("deterministic", DeterministicPlanner())
+        if isinstance(default, LLMProvider):
+            self.register_provider("llm", default)
 
     def register_provider(self, name: str, provider: BaseModelProvider) -> None:
         """Register a named model provider."""

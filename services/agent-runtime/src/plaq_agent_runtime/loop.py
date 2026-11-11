@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 import time
@@ -11,11 +10,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from plaq_agent_runtime.approvals import ApprovalManager
 from plaq_agent_runtime.registry import ToolContext, ToolRegistry, create_default_tool_registry
-from plaq_contracts.approval import ApprovalStatus
-from plaq_contracts.common import utc_now_iso
 from plaq_contracts.event import EventType, PlatformEvent
-from plaq_contracts.step import PlanDefinition, PlanStep, StepStatus
-from plaq_contracts.task import Task, TaskStatus
+from plaq_contracts.step import PlanStep, StepStatus
 from plaq_contracts.tool import ToolRequest, ToolResult
 from plaq_control_plane.recovery import CheckpointRecoveryManager
 from plaq_control_plane.repository import ControlPlaneRepository

@@ -6,9 +6,12 @@ from plaq_model_gateway.providers import (
     DeterministicPlanner,
     LLMProvider,
     MockModelProvider,
+    parse_llm_plan,
+    parse_llm_verify,
+    PLANNER_TOOL_CATALOG,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "ModelGateway",
@@ -16,4 +19,7 @@ __all__ = [
     "DeterministicPlanner",
     "MockModelProvider",
     "LLMProvider",
+    "parse_llm_plan",
+    "parse_llm_verify",
+    "PLANNER_TOOL_CATALOG",
 ]

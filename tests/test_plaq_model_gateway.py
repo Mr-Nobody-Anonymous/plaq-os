@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from plaq_contracts.step import PlanDefinition, PlanStep, StepStatus
@@ -12,6 +14,8 @@ from plaq_model_gateway import (
     LLMProvider,
     MockModelProvider,
     ModelGateway,
+    parse_llm_plan,
+    parse_llm_verify,
 )
 
 
@@ -121,6 +125,99 @@ class TestLLMProviderFallback:
         res = ToolResult(success=True, output="4 qubits", exit_code=0)
         ok, _ = llm.verify_criteria("4 qubits", res)
         assert ok is True
+
+    def test_structured_plan_from_chat(self):
+        llm = LLMProvider(api_key="sk-test")
+
+        def fake_chat(system, user, max_tokens=800, json_mode=False):
+            return json.dumps(
+                {
+                    "steps": [
+                        {
+                            "step_name": "Compile QAOA",
+                            "criteria": "depth > 0",
+                            "tool_name": "quantum.compile",
+                            "tool_parameters": {"workload": "qaoa"},
+                        },
+                        {
+                            "step_name": "Simulate",
+                            "criteria": "Exit code 0",
+                            "tool_name": "quantum.run",
+                            "tool_parameters": {"workload": "qaoa", "compute_energy": True},
+                        },
+                    ]
+                }
+            )
+
+        llm._chat = fake_chat  # type: ignore[method-assign]
+        steps = llm.generate_plan("Simulate QAOA MaxCut", task_id="t-llm")
+        assert len(steps) == 2
+        assert steps[0].tool_name == "quantum.compile"
+        assert steps[1].tool_name == "quantum.run"
+
+    def test_invalid_llm_json_falls_back(self):
+        llm = LLMProvider(api_key="sk-test")
+        llm._chat = lambda system, user, max_tokens=800, json_mode=False: "not json at all"  # type: ignore
+        steps = llm.generate_plan("Bernstein-Vazirani 101")
+        assert len(steps) == 3
+        assert steps[0].tool_name == "quantum.compile"
+
+    def test_llm_verify_json(self):
+        llm = LLMProvider(api_key="sk-test")
+        llm._chat = lambda system, user, max_tokens=800, json_mode=False: json.dumps(  # type: ignore
+            {"ok": True, "reason": "T-count present"}
+        )
+        res = ToolResult(success=True, output="T-count evaluated, code_distance=5", exit_code=0)
+        ok, reason = llm.verify_criteria("T-count evaluated, code distance >= 3", res)
+        assert ok is True
+        assert "T-count" in reason
+
+    def test_llm_verify_cannot_override_tool_failure(self):
+        llm = LLMProvider(api_key="sk-test")
+        llm._chat = lambda system, user, max_tokens=800, json_mode=False: json.dumps(  # type: ignore
+            {"ok": True, "reason": "looks fine"}
+        )
+        res = ToolResult(success=False, output="", error="boom", exit_code=2)
+        ok, msg = llm.verify_criteria("Circuit depth > 0", res)
+        assert ok is False
+        assert "exit code 2" in msg
+
+
+class TestParseLlmVerify:
+    def test_parse_ok(self):
+        assert parse_llm_verify('{"ok": true, "reason": "yes"}') == (True, "yes")
+
+    def test_parse_garbage(self):
+        assert parse_llm_verify("nope") is None
+
+
+class TestParseLlmPlan:
+    def test_drops_unknown_tools(self):
+        text = json.dumps(
+            {
+                "steps": [
+                    {"step_name": "ok", "tool_name": "quantum.run", "criteria": "ok", "tool_parameters": {}},
+                    {"step_name": "bad", "tool_name": "rm.rf", "criteria": "no"},
+                ]
+            }
+        )
+        steps = parse_llm_plan(text, "t1")
+        assert len(steps) == 1
+        assert steps[0].tool_name == "quantum.run"
+
+
+class TestDeterministicQuantumPlans:
+    def test_qaoa_plan(self):
+        planner = DeterministicPlanner()
+        steps = planner.generate_plan("Run a QAOA MaxCut simulation", task_id="t-qaoa")
+        assert any(s.tool_name == "quantum.run" for s in steps)
+        assert any(s.tool_name == "quantum.compile" for s in steps)
+
+    def test_threshold_plan(self):
+        planner = DeterministicPlanner()
+        steps = planner.generate_plan("Measure surface code logical error threshold", task_id="t-th")
+        assert steps[0].tool_name == "quantum.simulate"
+        assert steps[1].tool_name == "quantum.threshold"
 
 
 class TestModelGateway:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import Optional
 
 from plaq_control_plane.repository import ControlPlaneRepository
@@ -15,13 +13,10 @@ _default_runtime: Optional[AgentRuntime] = None
 
 
 def get_default_db_path() -> str:
-    """Return configured or default SQLite database path."""
-    env_path = os.environ.get("PLAQ_DB_PATH")
-    if env_path:
-        return env_path
-    data_dir = Path.home() / ".plaq"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return str(data_dir / "plaq.db")
+    """Return configured or default SQLite database path (``~`` expanded)."""
+    from plaq_control_plane.db import resolve_db_path
+
+    return resolve_db_path()
 
 
 def get_repo() -> ControlPlaneRepository:

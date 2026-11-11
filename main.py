@@ -37,7 +37,7 @@ from optimizer import (
 from dashboard import generate_html_dashboard
 from baselines import run_four_baselines_protocol, run_ablation_study
 from search_algorithms import benchmark_search_methods
-from server import start_quantum_server
+
 
 
 def generate_run_manifest(output_path: str = "results/run_manifest.json") -> dict:
@@ -360,18 +360,34 @@ def main() -> None:
     parser.add_argument("--workload", type=str, default="chemistry_femoco_6q", help="Target workload or 'all'")
     parser.add_argument("--hardware", type=str, default="superconducting", choices=list(HARDWARE_CATALOG.keys()))
     parser.add_argument("--epsilon", type=float, default=1e-3, help="Maximum acceptable failure probability")
+    # Backwards-compat: older CI/docs used `--search greedy|exhaustive|…`.
+    # Accept and ignore (search method is selected internally).
+    parser.add_argument("--search", type=str, default=None, help="Search method (accepted for compatibility)")
 
     args = parser.parse_args()
 
     if not any([args.run_all, args.manifest, args.benchmark, args.optimize, args.compare, args.baselines, args.ablation, args.search_bench, args.dashboard, args.ui]):
-        args.run_all = True
+        # If only --search/--workload/--hardware were given (legacy CI smoke
+        # command), run a lightweight optimize instead of the full run-all.
+        if args.search is not None:
+            args.optimize = True
+        else:
+            args.run_all = True
 
     shared_cache = CompilationCache()
 
     if args.ui:
         import webbrowser
+
+        import plaq_bootstrap  # noqa: F401
+        import uvicorn
+
+        print(
+            "Launching Plaq-OS FastAPI workbench (legacy --ui). Prefer: python plaq.py serve",
+            flush=True,
+        )
         webbrowser.open(f"http://127.0.0.1:{args.port}")
-        start_quantum_server(port=args.port)
+        uvicorn.run("plaq_api.app:app", host="127.0.0.1", port=args.port)
         return
 
     if args.manifest:

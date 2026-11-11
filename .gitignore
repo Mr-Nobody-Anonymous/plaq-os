@@ -48,3 +48,19 @@ ENV/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Plaq-OS runtime state
+.plaq/
+*.db
+*.db-wal
+*.db-shm
+.worktrees/
+
+# Generated benchmark / dashboard output (regenerable via main.py)
+results/*.png
+results/*.json
+results/*.csv
+results/*.html
+
+# Agent scratchpad (not part of the product)
+.agents/

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plaq-mcp"
+version = "0.3.0"
+description = "Model Context Protocol server for Plaq-OS quantum simulation tools"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "plaq-contracts>=0.3.0",
+    "plaq-control-plane>=0.3.0",
+    "plaq-agent-runtime>=0.3.0",
+    "plaq-quantum>=0.3.0",
+]
+
+[project.scripts]
+plaq-mcp = "plaq_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

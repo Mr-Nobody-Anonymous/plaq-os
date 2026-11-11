@@ -18,10 +18,8 @@ Implements Section 8 & Section 9 of the research roadmap:
 """
 
 from __future__ import annotations
-import math
 from dataclasses import dataclass
-from typing import List, Dict, Any, Tuple, Optional
-import pandas as pd
+from typing import List, Optional
 
 try:
     from .hardware import HardwareModel, DEMO_HARDWARE
@@ -45,11 +43,10 @@ except (ImportError, ValueError):
             CompilationCache,
         )
     except ImportError:
-        from hardware import HardwareModel, DEMO_HARDWARE
-        from cost_model import extract_circuit_metrics, evaluate_fault_tolerant_cost, CostEstimationResult
+        from hardware import HardwareModel
+        from cost_model import extract_circuit_metrics, evaluate_fault_tolerant_cost
         from optimizer import (
             ExecutionPlan,
-            EvaluatedPlan,
             evaluate_plan,
             search_pareto_optimizer,
             CompilationCache,

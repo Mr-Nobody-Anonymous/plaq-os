@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from plaq_control_plane.repository import ControlPlaneRepository
-from plaq_artifacts.service import ArtifactService
 from plaq_api.deps import get_repo
 
 router = APIRouter(prefix="/api/v1/artifacts", tags=["Artifacts"])

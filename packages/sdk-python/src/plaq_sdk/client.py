@@ -8,19 +8,10 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import httpx
 
 from plaq_contracts import (
-    ApprovalDecision,
     ApprovalRequest,
-    ApprovalStatus,
-    ArtifactPublishRequest,
-    ArtifactRecord,
     PlatformEvent,
-    QuantumBenchmarkRequest,
-    QuantumCompileRequest,
-    QuantumEstimateRequest,
     QuantumResult,
     Task,
-    TaskCreate,
-    TaskStatus,
 )
 
 
@@ -100,7 +91,7 @@ class PlaqClient:
         if self.local:
             return {
                 "status": "ok",
-                "version": "0.1.0",
+                "version": "0.3.0",
                 "mode": "local",
                 "components": {
                     "control_plane": "ok" if self._repo else "unconfigured",
@@ -258,25 +249,58 @@ class PlaqClient:
         qubits: int = 4,
         physical_error_rate: float = 0.001,
         error_budget: float = 1e-3,
+        circuit_depth: int = 50,
+        hardware_profile: str = "demo-illustrative",
     ) -> QuantumResult:
-        """Estimate code distance and fault-tolerant physical resources."""
+        """Estimate code distance and fault-tolerant physical resources.
+
+        Local mode runs the same analytical cost model as the API router
+        (``evaluate_fault_tolerant_cost``) so CLI and API results agree.
+        """
         if self.local and self._quantum:
-            d, feasible, _ = self._quantum.cost_model.solve_minimum_code_distance(
-                physical_error=physical_error_rate,
-                threshold=0.01,
-                spacetime_volume=qubits * 100,
-                allocated_error_budget=error_budget,
+            hw = self._quantum.hardware.get_hardware_profile(hardware_profile)
+            t_count = qubits * 10
+            metrics = self._quantum.cost_model.CircuitMetrics(
+                num_qubits=qubits,
+                depth=circuit_depth,
+                total_ops=qubits * circuit_depth,
+                single_qubit_ops=max(0, qubits * circuit_depth - t_count),
+                two_qubit_ops=qubits,
+                t_ops=t_count,
+                t_depth=max(1, t_count // 2),
+                measurement_ops=qubits,
+                operation_counts={"t": t_count},
+                synthesis_t_count=0,
+            )
+            cost_res = self._quantum.cost_model.evaluate_fault_tolerant_cost(
+                metrics=metrics,
+                hardware=hw,
+                target_epsilon=error_budget,
             )
             return QuantumResult(
                 num_qubits=qubits,
-                code_distance=d if feasible else 3,
-                t_count=qubits * 10,
-                estimated_runtime_sec=1.25,
-                feasible=feasible,
+                code_distance=cost_res.code_distance,
+                physical_qubits=cost_res.physical_qubits,
+                t_count=t_count,
+                circuit_depth=circuit_depth,
+                estimated_runtime_sec=cost_res.runtime_seconds,
+                feasible=cost_res.valid,
+                metrics={
+                    "failure_probability": cost_res.failure_probability,
+                    "spacetime_volume": cost_res.spacetime_volume,
+                    "feasibility_reason": cost_res.feasibility_reason,
+                    "hardware_profile": hw.name,
+                },
             )
 
         assert self._client is not None
-        payload = {"qubits": qubits, "physical_error_rate": physical_error_rate, "error_budget": error_budget}
+        payload = {
+            "qubits": qubits,
+            "physical_error_rate": physical_error_rate,
+            "error_budget": error_budget,
+            "circuit_depth": circuit_depth,
+            "hardware_profile": hardware_profile,
+        }
         resp = self._client.post("/api/v1/quantum/estimate", json=payload)
         resp.raise_for_status()
         return QuantumResult.model_validate(resp.json())

@@ -16,6 +16,8 @@ from . import optimizer
 from . import baselines
 from . import search_algorithms
 from . import benchmark
+from . import workloads
+from . import simulation
 
 from .circuits import (
     make_test_circuit,
@@ -97,6 +99,22 @@ from .benchmark import (
     run_full_benchmark_suite,
 )
 
+from .workloads import (
+    resolve_circuit,
+    load_qasm,
+    list_workloads,
+    list_hardware_profiles,
+    make_bell_circuit,
+    make_ghz_circuit,
+)
+
+from .simulation import (
+    CircuitSimulationResult,
+    run_circuit_simulation,
+    circuit_fidelity,
+    strip_measurements,
+)
+
 __all__ = [
     "__version__",
     # submodules
@@ -108,6 +126,8 @@ __all__ = [
     "baselines",
     "search_algorithms",
     "benchmark",
+    "workloads",
+    "simulation",
     # circuits
     "make_test_circuit",
     "make_qaoa_circuit",
@@ -172,4 +192,15 @@ __all__ = [
     # benchmark
     "run_compiler_baseline",
     "run_full_benchmark_suite",
+    # workloads / simulation
+    "resolve_circuit",
+    "load_qasm",
+    "list_workloads",
+    "list_hardware_profiles",
+    "make_bell_circuit",
+    "make_ghz_circuit",
+    "CircuitSimulationResult",
+    "run_circuit_simulation",
+    "circuit_fidelity",
+    "strip_measurements",
 ]
