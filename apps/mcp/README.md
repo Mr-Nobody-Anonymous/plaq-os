@@ -15,7 +15,15 @@ Exposes the Plaq-OS fault-tolerant quantum engine to MCP hosts
 | `quantum_baselines` | 4-baselines protocol |
 | `quantum_threshold` | Logical-error vs distance sweep |
 | `quantum_workloads` / `quantum_hardware` | Catalogs |
+| `quantum_noise` | Depolarizing + readout vs ideal |
+| `quantum_mitigate` | Readout inversion + ZNE |
+| `quantum_transpile` | SWAP routing (linear / grid / heavy-hex) |
+| `quantum_surgery` | Lattice-surgery patch / factory plan |
+| `quantum_draw` | ASCII + Mermaid circuit |
+| `quantum_qasm` | OpenQASM 2.0 → metrics |
 | `task_create` / `task_run` / `task_status` | Agent loop |
+
+Prompts: `nisq_lab`, `ftqc_estimate`, `lattice_surgery`.
 
 Resources: `plaq://workloads`, `plaq://hardware`, `plaq://tools`.
 

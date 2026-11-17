@@ -16,6 +16,7 @@ class PlaqWorkbenchApp {
     await this.refreshHealth();
     await this.refreshTasks();
     await this.refreshApprovals();
+    await this.refreshWorkspaceTree();
 
     // Start WebSocket
     if (window.plaqWs) {
@@ -60,6 +61,51 @@ class PlaqWorkbenchApp {
     const runOptBtn = document.getElementById("btn-run-opt");
     if (runOptBtn) {
       runOptBtn.addEventListener("click", () => this.runQuantumOptimization());
+    }
+    const bind = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", () => fn.call(this));
+    };
+    bind("btn-run-noise", this.runNoiseLab);
+    bind("btn-run-mitigate", this.runMitigationLab);
+    bind("btn-run-surgery", this.runSurgeryLab);
+    bind("btn-run-draw", this.runDrawLab);
+    bind("btn-run-sampler", this.runSamplerLab);
+    bind("btn-run-vqe", this.runVqeLab);
+    bind("btn-run-bundle", this.runBundleLab);
+    bind("btn-run-repetition", this.runRepetitionLab);
+  }
+
+  async refreshWorkspaceTree() {
+    const ul = document.getElementById("workspace-file-tree");
+    if (!ul) return;
+    try {
+      const resp = await fetch(`${this.apiBase}/api/v1/workspace/tree?depth=2&limit=80`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const badge = document.getElementById("active-workspace-badge");
+      if (badge && data.root) {
+        const parts = String(data.root).split(/[\\/]/).filter(Boolean);
+        badge.textContent = parts.slice(-2).join("/") || data.root;
+      }
+      ul.innerHTML = "";
+      const entries = data.entries || [];
+      if (!entries.length) {
+        ul.innerHTML = '<li class="tree-item"><span>📁</span> (empty workspace)</li>';
+        return;
+      }
+      entries.forEach((entry) => {
+        const li = document.createElement("li");
+        li.className = "tree-item";
+        const depth = (String(entry.path || "").match(/\//g) || []).length;
+        li.style.paddingLeft = `${10 + depth * 10}px`;
+        const icon = entry.kind === "dir" ? "📁" : "📄";
+        li.innerHTML = `<span>${icon}</span> ${entry.name}`;
+        ul.appendChild(li);
+      });
+    } catch (err) {
+      ul.innerHTML = '<li class="tree-item"><span>📄</span> workspace unavailable</li>';
+      this.logTerminal(`Workspace tree failed: ${err.message}`, "warning");
     }
   }
 
@@ -184,6 +230,68 @@ class PlaqWorkbenchApp {
     } catch (err) {
       this.logTerminal(`Approval decision failed: ${err.message}`, "error");
     }
+  }
+
+  async _postQuantum(path, body, label) {
+    this.logTerminal(`${label}…`, "info");
+    try {
+      const resp = await fetch(`${this.apiBase}/api/v1/quantum/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        this.logTerminal(`${label} failed: ${data.detail || resp.status}`, "error");
+        return null;
+      }
+      this.logTerminal(`${label} ok: ${JSON.stringify(data).slice(0, 240)}`, "success");
+      return data;
+    } catch (err) {
+      this.logTerminal(`${label} failed: ${err.message}`, "error");
+      return null;
+    }
+  }
+
+  async runNoiseLab() {
+    await this._postQuantum("noise", { workload: "bell", shots: 1024, p2: 0.03 }, "NISQ noise (Bell)");
+  }
+
+  async runMitigationLab() {
+    await this._postQuantum("mitigate", { workload: "bell", observable: "success", p2: 0.03 }, "ZNE + readout");
+  }
+
+  async runSurgeryLab() {
+    await this._postQuantum(
+      "surgery",
+      { workload: "qft", qubits: 4, code_distance: 3, hardware_profile: "superconducting" },
+      "Lattice surgery plan",
+    );
+  }
+
+  async runDrawLab() {
+    const data = await this._postQuantum("draw", { workload: "bell" }, "Draw Bell");
+    const pre = document.getElementById("circuit-ascii");
+    if (pre && data && data.ascii) {
+      pre.style.display = "block";
+      pre.textContent = data.ascii;
+    }
+  }
+
+  async runSamplerLab() {
+    await this._postQuantum("sampler", { workload: "bell", shots: 512 }, "Sampler (Bell)");
+  }
+
+  async runVqeLab() {
+    await this._postQuantum("vqe", { hamiltonian: "h2", maxiter: 24 }, "H2 VQE");
+  }
+
+  async runBundleLab() {
+    await this._postQuantum("bundle", { workload: "bell" }, "Job bundle");
+  }
+
+  async runRepetitionLab() {
+    await this._postQuantum("repetition", { distance: 3, physical_error: 0.1, shots: 1000 }, "Repetition code");
   }
 
   async runQuantumOptimization() {

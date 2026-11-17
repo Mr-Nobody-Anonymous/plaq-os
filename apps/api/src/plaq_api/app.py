@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 import sys
 
 from plaq_api.auth import SESSION_COOKIE, is_authorized, resolve_api_key
-from plaq_api.routers import approvals, artifacts, health, jobs, quantum, stream, tasks
+from plaq_api.routers import approvals, artifacts, health, jobs, quantum, stream, tasks, workspace
 from plaq_api.deps import get_repo, get_runtime, set_repo, set_runtime
 from plaq_control_plane.repository import ControlPlaneRepository
 from plaq_agent_runtime.loop import AgentRuntime
@@ -123,6 +123,7 @@ def create_app(
     app.include_router(artifacts.router)
     app.include_router(stream.router)
     app.include_router(jobs.router)
+    app.include_router(workspace.router)
 
     # Workbench UI static files mount
     if workbench_dir is None:

@@ -131,6 +131,87 @@ def build_parser() -> argparse.ArgumentParser:
     quantum_sub.add_parser("workloads", help="List named quantum workloads")
     quantum_sub.add_parser("hardware", help="List calibrated hardware profiles")
 
+    q_noise = quantum_sub.add_parser("noise", help="NISQ depolarizing + readout noise vs ideal")
+    q_noise.add_argument("workload", nargs="?", default="bell")
+    q_noise.add_argument("--qubits", type=int, default=None)
+    q_noise.add_argument("--shots", type=int, default=1024)
+    q_noise.add_argument("--p1", type=float, default=0.001)
+    q_noise.add_argument("--p2", type=float, default=0.01)
+    q_noise.add_argument("--p-readout", type=float, default=0.02)
+    q_noise.add_argument("--json", action="store_true")
+
+    q_mit = quantum_sub.add_parser("mitigate", help="Readout inversion + zero-noise extrapolation")
+    q_mit.add_argument("workload", nargs="?", default="bell")
+    q_mit.add_argument("--observable", default="success")
+    q_mit.add_argument("--p2", type=float, default=0.01)
+    q_mit.add_argument("--json", action="store_true")
+
+    q_tp = quantum_sub.add_parser("transpile", help="SWAP-route onto a coupling map")
+    q_tp.add_argument("workload", nargs="?", default="qft")
+    q_tp.add_argument("--qubits", type=int, default=4)
+    q_tp.add_argument("--topology", default="linear", help="linear | grid | heavy_hex | all")
+    q_tp.add_argument("--json", action="store_true")
+
+    q_sur = quantum_sub.add_parser("surgery", help="Lattice-surgery resource plan")
+    q_sur.add_argument("workload", nargs="?", default="qft")
+    q_sur.add_argument("--qubits", type=int, default=4)
+    q_sur.add_argument("--distance", type=int, default=3)
+    q_sur.add_argument("--hardware", default="superconducting")
+    q_sur.add_argument("--json", action="store_true")
+
+    q_draw = quantum_sub.add_parser("draw", help="ASCII circuit diagram")
+    q_draw.add_argument("workload", nargs="?", default="bell")
+    q_draw.add_argument("--qubits", type=int, default=None)
+    q_draw.add_argument("--json", action="store_true")
+
+    q_sampler = quantum_sub.add_parser("sampler", help="Local SamplerV2 analogue (shot counts)")
+    q_sampler.add_argument("workload", nargs="?", default="bell")
+    q_sampler.add_argument("--qubits", type=int, default=None)
+    q_sampler.add_argument("--shots", type=int, default=1024)
+    q_sampler.add_argument("--seed", type=int, default=42)
+    q_sampler.add_argument("--json", action="store_true")
+
+    q_estp = quantum_sub.add_parser("estimator", help="Local EstimatorV2 analogue (Pauli ⟨P⟩)")
+    q_estp.add_argument("workload", nargs="?", default="bell")
+    q_estp.add_argument("--qubits", type=int, default=None)
+    q_estp.add_argument("--observable", default="ZZ")
+    q_estp.add_argument("--shots", type=int, default=0)
+    q_estp.add_argument("--json", action="store_true")
+
+    q_sup = quantum_sub.add_parser("suppress", help="XpXm dynamical decoupling + Pauli twirling")
+    q_sup.add_argument("workload", nargs="?", default="bell")
+    q_sup.add_argument("--qubits", type=int, default=None)
+    q_sup.add_argument("--sequence", default="XpXm")
+    q_sup.add_argument("--twirls", type=int, default=4)
+    q_sup.add_argument("--p2", type=float, default=0.02)
+    q_sup.add_argument("--observable", default="ZZ")
+    q_sup.add_argument("--json", action="store_true")
+
+    q_vqe = quantum_sub.add_parser("vqe", help="Hardware-efficient VQE on toy H2")
+    q_vqe.add_argument("--maxiter", type=int, default=40)
+    q_vqe.add_argument("--seed", type=int, default=0)
+    q_vqe.add_argument("--hamiltonian", default="h2")
+    q_vqe.add_argument("--json", action="store_true")
+
+    q_frame = quantum_sub.add_parser("frame", help="Deferred Pauli-frame update counts")
+    q_frame.add_argument("workload", nargs="?", default="qft")
+    q_frame.add_argument("--qubits", type=int, default=4)
+    q_frame.add_argument("--distance", type=int, default=3)
+    q_frame.add_argument("--json", action="store_true")
+
+    q_rep = quantum_sub.add_parser("repetition", help="Bit-flip repetition code (no Stim)")
+    q_rep.add_argument("--distance", type=int, default=3)
+    q_rep.add_argument("--error-rate", type=float, default=0.1)
+    q_rep.add_argument("--shots", type=int, default=2000)
+    q_rep.add_argument("--seed", type=int, default=0)
+    q_rep.add_argument("--json", action="store_true")
+
+    q_bundle = quantum_sub.add_parser("bundle", help="Export QASM2/3 job bundle")
+    q_bundle.add_argument("workload", nargs="?", default="bell")
+    q_bundle.add_argument("--qubits", type=int, default=None)
+    q_bundle.add_argument("--hardware", default="superconducting")
+    q_bundle.add_argument("--json", action="store_true")
+
     # 3. workspace group
     workspace_parser = subparsers.add_parser("workspace", help="Inspect and configure workbench workspaces")
     workspace_sub = workspace_parser.add_subparsers(dest="subcommand", help="Workspace actions")
@@ -478,8 +559,138 @@ def handle_quantum(args: argparse.Namespace) -> int:
         print(json.dumps(pq.workloads.list_hardware_profiles(), indent=2))
         return 0
 
+    elif sub == "noise":
+        import plaq_quantum as pq
+
+        res = pq.noise.run_noisy_simulation(
+            workload=args.workload,
+            qubits=args.qubits,
+            shots=args.shots,
+            p1=args.p1,
+            p2=args.p2,
+            p_readout=args.p_readout,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "mitigate":
+        import plaq_quantum as pq
+
+        res = pq.mitigation.run_mitigation(
+            workload=args.workload,
+            p2=args.p2,
+            observable=args.observable,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "transpile":
+        import plaq_quantum as pq
+
+        res = pq.transpiler.route_circuit(
+            workload=args.workload,
+            qubits=args.qubits,
+            topology=args.topology,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "surgery":
+        import plaq_quantum as pq
+
+        res = pq.surgery.plan_lattice_surgery(
+            workload=args.workload,
+            qubits=args.qubits,
+            code_distance=args.distance,
+            hardware_profile=args.hardware,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "draw":
+        import plaq_quantum as pq
+
+        res = pq.visualize.draw_circuit(workload=args.workload, qubits=args.qubits)
+        if args.json:
+            print(json.dumps(res.to_dict(), indent=2))
+        else:
+            print(res.ascii)
+        return 0
+
+    elif sub == "sampler":
+        import plaq_quantum as pq
+
+        res = pq.primitives.run_sampler(
+            workload=args.workload, qubits=args.qubits, shots=args.shots, seed=args.seed
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "estimator":
+        import plaq_quantum as pq
+
+        res = pq.primitives.run_estimator(
+            workload=args.workload, qubits=args.qubits, observable=args.observable, shots=args.shots
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "suppress":
+        import plaq_quantum as pq
+
+        res = pq.suppression.run_suppression(
+            workload=args.workload,
+            qubits=args.qubits,
+            sequence=args.sequence,
+            twirl_randomizations=args.twirls,
+            p2=args.p2,
+            observable=args.observable,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "vqe":
+        import plaq_quantum as pq
+
+        res = pq.vqe.run_vqe(maxiter=args.maxiter, seed=args.seed, hamiltonian=args.hamiltonian)
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "frame":
+        import plaq_quantum as pq
+
+        res = pq.pauli_frame.track_pauli_frame(
+            workload=args.workload, qubits=args.qubits, code_distance=args.distance
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "repetition":
+        import plaq_quantum as pq
+
+        res = pq.repetition.run_repetition_code(
+            distance=args.distance,
+            physical_error=args.error_rate,
+            shots=args.shots,
+            seed=args.seed,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "bundle":
+        import plaq_quantum as pq
+
+        res = pq.bundle.export_bundle(workload=args.workload, qubits=args.qubits, hardware_profile=args.hardware)
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
     else:
-        print("Usage: plaq quantum [compile|estimate|benchmark|optimize|simulate|run|workloads|hardware]", file=sys.stderr)
+        print(
+            "Usage: plaq quantum [compile|estimate|benchmark|optimize|simulate|run|"
+            "workloads|hardware|noise|mitigate|transpile|surgery|draw|"
+            "sampler|estimator|suppress|vqe|frame|repetition|bundle]",
+            file=sys.stderr,
+        )
         return 1
 
 

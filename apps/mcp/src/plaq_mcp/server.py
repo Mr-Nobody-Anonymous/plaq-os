@@ -13,9 +13,10 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 PROTOCOL_VERSION = "2024-11-05"
+SUPPORTED_PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18")
 SERVER_NAME = "plaq-os"
 SERVER_VERSION = "0.3.0"
 
@@ -27,16 +28,75 @@ def _json_default(obj: Any) -> Any:
         return list(obj)
     if isinstance(obj, Path):
         return str(obj)
+    ndim = getattr(obj, "ndim", None)
+    if ndim == 0 and hasattr(obj, "item"):
+        return obj.item()
+    if hasattr(obj, "tolist") and callable(obj.tolist) and ndim is not None:
+        return obj.tolist()
     return str(obj)
 
 
+def _jsonable(obj: Any) -> Any:
+    """Make numpy keys/values and dataclasses JSON-safe."""
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return _jsonable(asdict(obj))
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if isinstance(k, (str, int, float, bool)) or k is None:
+                key: Any = k
+            else:
+                key = str(k)
+            out[key] = _jsonable(v)
+        return out
+    if isinstance(obj, (list, tuple, set)):
+        return [_jsonable(x) for x in obj]
+    ndim = getattr(obj, "ndim", None)
+    if ndim == 0 and hasattr(obj, "item"):
+        return obj.item()
+    if hasattr(obj, "tolist") and callable(obj.tolist) and ndim is not None:
+        return _jsonable(obj.tolist())
+    return obj
+
+
 def _ok_text(payload: Any) -> Dict[str, Any]:
-    text = payload if isinstance(payload, str) else json.dumps(payload, indent=2, default=_json_default)
-    return {"content": [{"type": "text", "text": text}]}
+    if isinstance(payload, str):
+        text = payload
+        structured: Any = None
+    else:
+        structured = _jsonable(payload)
+        text = json.dumps(structured, indent=2, default=_json_default)
+    out: Dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": False}
+    if isinstance(structured, dict):
+        out["structuredContent"] = structured
+    return out
 
 
 def _err_text(message: str) -> Dict[str, Any]:
     return {"content": [{"type": "text", "text": message}], "isError": True}
+
+
+def _get_int(args: Dict[str, Any], key: str, default: Optional[int] = None) -> Optional[int]:
+    if key not in args or args[key] is None or args[key] == "":
+        return default
+    return int(args[key])
+
+
+def _get_float(args: Dict[str, Any], key: str, default: Optional[float] = None) -> Optional[float]:
+    if key not in args or args[key] is None or args[key] == "":
+        return default
+    return float(args[key])
+
+
+def _negotiate_version(params: Dict[str, Any]) -> str:
+    requested = str((params or {}).get("protocolVersion") or "")
+    if requested in SUPPORTED_PROTOCOL_VERSIONS:
+        return requested
+    return PROTOCOL_VERSION
 
 
 def _tool(name: str, description: str, properties: Dict[str, Any], required: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -131,6 +191,121 @@ def tool_catalog() -> List[Dict[str, Any]]:
             {},
         ),
         _tool(
+            "quantum_noise",
+            "Phenomenological NISQ noise (depolarizing + readout) versus the ideal statevector.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "shots": {"type": "integer", "default": 1024},
+                "p1": {"type": "number", "default": 0.001},
+                "p2": {"type": "number", "default": 0.01},
+                "p_readout": {"type": "number", "default": 0.02},
+            },
+        ),
+        _tool(
+            "quantum_mitigate",
+            "Readout inversion + zero-noise extrapolation (ZNE) on a circuit observable.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "observable": {"type": "string", "default": "success"},
+                "p2": {"type": "number", "default": 0.01},
+            },
+        ),
+        _tool(
+            "quantum_transpile",
+            "SWAP-route a circuit onto linear, grid, or IBM-like heavy-hex coupling.",
+            {
+                "workload": {"type": "string", "default": "qft"},
+                "qubits": {"type": "integer", "default": 4},
+                "topology": {"type": "string", "default": "linear"},
+            },
+        ),
+        _tool(
+            "quantum_surgery",
+            "Lattice-surgery resource plan: surface-code patches, 15-to-1 T factories, code cycles.",
+            {
+                "workload": {"type": "string", "default": "qft"},
+                "qubits": {"type": "integer", "default": 4},
+                "code_distance": {"type": "integer", "default": 3},
+                "hardware_profile": {"type": "string", "default": "superconducting"},
+            },
+        ),
+        _tool(
+            "quantum_draw",
+            "ASCII and Mermaid diagram of a named workload or OpenQASM circuit.",
+            {"workload": {"type": "string", "default": "bell"}, "qubits": {"type": "integer"}},
+        ),
+        _tool(
+            "quantum_sampler",
+            "Local SamplerV2 analogue: shot counts from the ideal statevector.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "shots": {"type": "integer", "default": 1024},
+                "seed": {"type": "integer", "default": 42},
+            },
+        ),
+        _tool(
+            "quantum_estimator",
+            "Local EstimatorV2 analogue: Pauli expectation ⟨P⟩.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "observable": {"type": "string", "default": "ZZ"},
+                "shots": {"type": "integer", "default": 0},
+            },
+        ),
+        _tool(
+            "quantum_suppress",
+            "Gate-level XpXm dynamical decoupling + CX Pauli twirling vs phenomenological noise.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "sequence": {"type": "string", "default": "XpXm"},
+                "twirl_randomizations": {"type": "integer", "default": 4},
+                "p2": {"type": "number", "default": 0.02},
+                "observable": {"type": "string", "default": "ZZ"},
+            },
+        ),
+        _tool(
+            "quantum_vqe",
+            "Hardware-efficient VQE on a 2-qubit toy H₂ Hamiltonian (no PySCF).",
+            {
+                "maxiter": {"type": "integer", "default": 40},
+                "seed": {"type": "integer", "default": 0},
+                "hamiltonian": {"type": "string", "default": "h2"},
+            },
+        ),
+        _tool(
+            "quantum_frame",
+            "Deferred Pauli-frame update counts for a logical circuit.",
+            {
+                "workload": {"type": "string", "default": "qft"},
+                "qubits": {"type": "integer", "default": 4},
+                "code_distance": {"type": "integer", "default": 3},
+            },
+        ),
+        _tool(
+            "quantum_repetition",
+            "Bit-flip repetition-code Monte Carlo (works without Stim).",
+            {
+                "distance": {"type": "integer", "default": 3},
+                "physical_error": {"type": "number", "default": 0.1},
+                "shots": {"type": "integer", "default": 2000},
+                "seed": {"type": "integer", "default": 0},
+            },
+        ),
+        _tool(
+            "quantum_bundle",
+            "Export a versioned job bundle (OpenQASM 2/3 + metrics + FT estimate).",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "hardware_profile": {"type": "string", "default": "superconducting"},
+            },
+        ),
+        _tool(
+            "quantum_qasm",
+            "Compile an OpenQASM 2.0 body and extract circuit metrics.",
+            {"qasm": {"type": "string", "description": "OpenQASM 2.0 source"}},
+            required=["qasm"],
+        ),
+        _tool(
             "task_create",
             "Create a Plaq-OS agent task from a natural-language goal (queued for the 7-stage loop).",
             {"goal": {"type": "string"}, "workspace_path": {"type": "string"}},
@@ -152,6 +327,79 @@ def tool_catalog() -> List[Dict[str, Any]]:
             required=["task_id"],
         ),
     ]
+
+
+def prompt_catalog() -> List[Dict[str, Any]]:
+    """Prompts MCP hosts can offer the user / agent."""
+    return [
+        {
+            "name": "nisq_lab",
+            "description": "Run a Bell circuit through NISQ noise and ZNE mitigation.",
+            "arguments": [],
+        },
+        {
+            "name": "ftqc_estimate",
+            "description": "Compile a workload, estimate FT resources, optionally Stim-simulate.",
+            "arguments": [
+                {"name": "workload", "description": "Named circuit (qft, qaoa, chemistry, …)", "required": False}
+            ],
+        },
+        {
+            "name": "lattice_surgery",
+            "description": "Plan surface-code patches and T factories for a logical circuit.",
+            "arguments": [
+                {"name": "workload", "description": "Named circuit", "required": False},
+                {"name": "distance", "description": "Code distance d (odd integer >= 3)", "required": False},
+            ],
+        },
+        {
+            "name": "vqe_h2",
+            "description": "Run the local hardware-efficient VQE on toy H₂.",
+            "arguments": [],
+        },
+        {
+            "name": "job_bundle",
+            "description": "Export an OpenQASM 2/3 job bundle for a named workload.",
+            "arguments": [
+                {"name": "workload", "description": "Named circuit", "required": False},
+            ],
+        },
+    ]
+
+
+def _render_prompt(name: str, arguments: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    args = arguments or {}
+    wl = str(args.get("workload") or "qft")
+    d = str(args.get("distance") or "5")
+    texts = {
+        "nisq_lab": (
+            "Use Plaq-OS MCP tools. 1) quantum_run workload=bell. "
+            "2) quantum_noise workload=bell p2=0.03. "
+            "3) quantum_mitigate workload=bell. Summarize TVD and whether ZNE improved the observable."
+        ),
+        "ftqc_estimate": (
+            f"Use Plaq-OS MCP tools on workload={wl}: quantum_compile, quantum_estimate, "
+            "then quantum_simulate if Stim is available (if it errors, skip and say so)."
+        ),
+        "lattice_surgery": (
+            f"Call quantum_surgery with workload={wl} and code_distance={d}. "
+            "Explain physical qubit total, factory count, and decoder_backlog_safe."
+        ),
+        "vqe_h2": (
+            "Call quantum_vqe with hamiltonian=h2 and maxiter=40. "
+            "Compare energy to exact_diagonal and say whether the gap is small."
+        ),
+        "job_bundle": (
+            f"Call quantum_bundle with workload={wl}. Summarize qasm2 header, "
+            "code_distance, and physical_qubits."
+        ),
+    }
+    if name not in texts:
+        raise KeyError(f"Unknown prompt: {name}")
+    return {
+        "description": next(p["description"] for p in prompt_catalog() if p["name"] == name),
+        "messages": [{"role": "user", "content": {"type": "text", "text": texts[name]}}],
+    }
 
 
 def resource_catalog() -> List[Dict[str, Any]]:
@@ -252,11 +500,15 @@ def _call_quantum_estimate(args: Dict[str, Any]) -> Any:
 def _call_quantum_simulate(args: Dict[str, Any]) -> Any:
     import plaq_quantum as pq
 
+    if not getattr(pq.stim_bridge, "HAS_STIM", False):
+        raise RuntimeError(
+            "Stim is not installed. Install stim+pymatching or use quantum_run / quantum_noise (lite profile)."
+        )
     res = pq.stim_bridge.run_surface_code_simulation(
-        code_distance=int(args.get("code_distance") or 3),
-        physical_error_rate=float(args.get("physical_error_rate") or 0.001),
-        shots=int(args.get("shots") or 200),
-        seed=int(args.get("seed") or 42),
+        code_distance=_get_int(args, "code_distance", 3) or 3,
+        physical_error_rate=_get_float(args, "physical_error_rate", 0.001) or 0.001,
+        shots=_get_int(args, "shots", 200) or 200,
+        seed=_get_int(args, "seed", 42) or 42,
     )
     return asdict(res)
 
@@ -266,10 +518,10 @@ def _call_quantum_run(args: Dict[str, Any]) -> Any:
 
     res = pq.simulation.run_circuit_simulation(
         workload=args.get("workload") or "bell",
-        qubits=args.get("qubits"),
+        qubits=_get_int(args, "qubits", None),
         qasm=args.get("qasm"),
-        shots=int(args.get("shots") or 0),
-        seed=int(args.get("seed") or 42),
+        shots=_get_int(args, "shots", 0) or 0,
+        seed=_get_int(args, "seed", 42) or 42,
         compute_energy=bool(args.get("compute_energy") or False),
     )
     return res.to_dict()
@@ -303,12 +555,16 @@ def _call_quantum_baselines(args: Dict[str, Any]) -> Any:
 def _call_quantum_threshold(args: Dict[str, Any]) -> Any:
     import plaq_quantum as pq
 
+    if not getattr(pq.stim_bridge, "HAS_STIM", False):
+        raise RuntimeError(
+            "Stim is not installed. Install stim+pymatching for threshold sweeps, or use quantum_noise."
+        )
     distances = args.get("distances") or [3]
     rates = args.get("physical_error_rates") or [0.001, 0.01]
     results = pq.stim_bridge.run_threshold_study(
         distances=list(distances),
         physical_error_rates=list(rates),
-        shots_per_point=int(args.get("shots_per_point") or 40),
+        shots_per_point=_get_int(args, "shots_per_point", 40) or 40,
     )
     return {"samples": [asdict(r) for r in results]}
 
@@ -337,6 +593,154 @@ def _dispatch_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             import plaq_quantum as pq
 
             return _ok_text(pq.workloads.list_hardware_profiles())
+        if name == "quantum_noise":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.noise.run_noisy_simulation(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    shots=_get_int(args, "shots", 1024) or 0,
+                    seed=_get_int(args, "seed", 42) or 42,
+                    p1=_get_float(args, "p1", 0.001) or 0.0,
+                    p2=_get_float(args, "p2", 0.01) or 0.0,
+                    p_readout=_get_float(args, "p_readout", 0.02) or 0.0,
+                ).to_dict()
+            )
+        if name == "quantum_mitigate":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.mitigation.run_mitigation(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    p1=_get_float(args, "p1", 0.001),
+                    p2=_get_float(args, "p2", 0.01),
+                    p_readout=_get_float(args, "p_readout", 0.02),
+                    observable=str(args.get("observable") or "success"),
+                ).to_dict()
+            )
+        if name == "quantum_transpile":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.transpiler.route_circuit(
+                    workload=args.get("workload") or "qft",
+                    qubits=_get_int(args, "qubits", 4),
+                    qasm=args.get("qasm"),
+                    topology=str(args.get("topology") or "linear"),
+                ).to_dict()
+            )
+        if name == "quantum_surgery":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.surgery.plan_lattice_surgery(
+                    workload=args.get("workload") or "qft",
+                    qubits=_get_int(args, "qubits", 4),
+                    qasm=args.get("qasm"),
+                    code_distance=_get_int(args, "code_distance", 3),
+                    hardware_profile=str(args.get("hardware_profile") or "superconducting"),
+                ).to_dict()
+            )
+        if name == "quantum_draw":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.visualize.draw_circuit(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                ).to_dict()
+            )
+        if name == "quantum_sampler":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.primitives.run_sampler(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    shots=_get_int(args, "shots", 1024) or 1024,
+                    seed=_get_int(args, "seed", 42) or 42,
+                ).to_dict()
+            )
+        if name == "quantum_estimator":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.primitives.run_estimator(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    observable=str(args.get("observable") or "ZZ"),
+                    shots=_get_int(args, "shots", 0) or 0,
+                ).to_dict()
+            )
+        if name == "quantum_suppress":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.suppression.run_suppression(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    sequence=str(args.get("sequence") or "XpXm"),
+                    twirl_randomizations=_get_int(args, "twirl_randomizations", 4) or 4,
+                    p2=_get_float(args, "p2", 0.02) or 0.0,
+                    observable=str(args.get("observable") or "ZZ"),
+                ).to_dict()
+            )
+        if name == "quantum_vqe":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.vqe.run_vqe(
+                    maxiter=_get_int(args, "maxiter", 40) or 40,
+                    seed=_get_int(args, "seed", 0) or 0,
+                    hamiltonian=str(args.get("hamiltonian") or "h2"),
+                ).to_dict()
+            )
+        if name == "quantum_frame":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.pauli_frame.track_pauli_frame(
+                    workload=args.get("workload") or "qft",
+                    qubits=_get_int(args, "qubits", 4),
+                    qasm=args.get("qasm"),
+                    code_distance=_get_int(args, "code_distance", 3) or 3,
+                ).to_dict()
+            )
+        if name == "quantum_repetition":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.repetition.run_repetition_code(
+                    distance=_get_int(args, "distance", 3) or 3,
+                    physical_error=_get_float(args, "physical_error", 0.1) or 0.0,
+                    shots=_get_int(args, "shots", 2000) or 2000,
+                    seed=_get_int(args, "seed", 0) or 0,
+                ).to_dict()
+            )
+        if name == "quantum_bundle":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.bundle.export_bundle(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    hardware_profile=str(args.get("hardware_profile") or "superconducting"),
+                ).to_dict()
+            )
+        if name == "quantum_qasm":
+            qasm = args.get("qasm")
+            if not qasm:
+                return _err_text("quantum_qasm requires 'qasm'")
+            return _ok_text(_call_quantum_compile({"qasm": qasm}))
         if name == "task_create":
             repo = _repo()
             row = repo.create_task(
@@ -374,7 +778,8 @@ def _dispatch_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
             return _ok_text({"task": task, "steps": steps, "jobs": jobs})
         return _err_text(f"Unknown tool: {name}")
     except Exception as exc:
-        return _err_text(f"{type(exc).__name__}: {exc}\n{traceback.format_exc(limit=4)}")
+        print(f"[plaq-mcp] {name} failed: {exc}\n{traceback.format_exc(limit=4)}", file=sys.stderr)
+        return _err_text(f"{type(exc).__name__}: {exc}")
 
 
 def _read_resource(uri: str) -> Dict[str, Any]:
@@ -402,6 +807,51 @@ def _read_resource(uri: str) -> Dict[str, Any]:
     return {"contents": [{"uri": uri, "mimeType": "application/json", "text": body}]}
 
 
+def _completion_pool(argument_name: str) -> List[str]:
+    name = (argument_name or "").lower()
+    if name in {"workload"}:
+        try:
+            from plaq_quantum.workloads import available_workload_ids
+
+            return list(available_workload_ids())
+        except Exception:
+            return ["bell", "ghz", "qft", "qaoa", "bv", "chemistry", "shor", "grover", "teleport"]
+    if name in {"hardware_profile", "hardware"}:
+        return ["superconducting", "trapped_ion", "neutral_atom", "qldpc", "demo", "demo-illustrative"]
+    if name == "topology":
+        return ["linear", "grid", "heavy_hex", "all"]
+    if name == "observable":
+        return ["ZZ", "XX", "Z", "X", "success"]
+    if name == "sequence":
+        return ["XpXm", "XY4", "XX"]
+    if name in {"distance", "code_distance"}:
+        return ["3", "5", "7", "9"]
+    if name == "hamiltonian":
+        return ["h2", "hydrogen", "sto3g"]
+    if name == "uri":
+        return ["plaq://workloads", "plaq://hardware", "plaq://tools"]
+    return []
+
+
+def _handle_complete(params: Dict[str, Any]) -> Dict[str, Any]:
+    """MCP 2025-06-18 completion/complete for prompt/tool/resource arguments."""
+    ref = params.get("ref") or {}
+    argument = params.get("argument") or {}
+    arg_name = str(argument.get("name") or "")
+    arg_value = str(argument.get("value") or "")
+    rtype = str(ref.get("type") or "")
+    if rtype in {"ref/resource", "ref/resource_template"} and not arg_name:
+        arg_name = "uri"
+    pool = _completion_pool(arg_name)
+    pref = arg_value.lower()
+    if pref:
+        values = [v for v in pool if v.lower().startswith(pref) or pref in v.lower()]
+    else:
+        values = list(pool)
+    values = values[:100]
+    return {"completion": {"values": values, "total": len(values), "hasMore": False}}
+
+
 def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Dispatch a single JSON-RPC request. Returns None for notifications."""
     method = message.get("method")
@@ -422,19 +872,30 @@ def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     try:
         if method == "initialize":
+            version = _negotiate_version(params if isinstance(params, dict) else {})
             return result(
                 {
-                    "protocolVersion": PROTOCOL_VERSION,
+                    "protocolVersion": version,
                     "capabilities": {
                         "tools": {"listChanged": False},
                         "resources": {"listChanged": False, "subscribe": False},
+                        "prompts": {"listChanged": False},
+                        "completions": {},
+                        "logging": {},
                     },
                     "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+                    "instructions": (
+                        "Plaq-OS quantum workbench. Prefer quantum_run / quantum_noise / "
+                        "quantum_mitigate for NISQ circuits; quantum_estimate / quantum_surgery "
+                        "for FTQC resources; quantum_simulate only when Stim is installed."
+                    ),
                 }
             )
-        if method in {"notifications/initialized", "initialized"}:
+        if method in {"notifications/initialized", "initialized", "notifications/cancelled"}:
             return None
         if method == "ping":
+            return None if is_notification else result({})
+        if method == "logging/setLevel":
             return None if is_notification else result({})
         if method == "tools/list":
             return result({"tools": tool_catalog()})
@@ -443,16 +904,33 @@ def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             args = params.get("arguments") or {}
             if not name:
                 return error(-32602, "tools/call requires 'name'")
+            if not isinstance(args, dict):
+                return error(-32602, "tools/call 'arguments' must be an object")
             return result(_dispatch_tool(str(name), dict(args)))
         if method == "resources/list":
             return result({"resources": resource_catalog()})
+        if method == "resources/templates/list":
+            return result({"resourceTemplates": []})
         if method == "resources/read":
             uri = params.get("uri")
             if not uri:
                 return error(-32602, "resources/read requires 'uri'")
-            return result(_read_resource(str(uri)))
+            try:
+                return result(_read_resource(str(uri)))
+            except KeyError as exc:
+                return error(-32602, str(exc))
         if method == "prompts/list":
-            return result({"prompts": []})
+            return result({"prompts": prompt_catalog()})
+        if method == "prompts/get":
+            pname = params.get("name")
+            if not pname:
+                return error(-32602, "prompts/get requires 'name'")
+            try:
+                return result(_render_prompt(str(pname), params.get("arguments") or {}))
+            except KeyError as exc:
+                return error(-32602, str(exc))
+        if method == "completion/complete":
+            return result(_handle_complete(params if isinstance(params, dict) else {}))
         if is_notification:
             return None
         return error(-32601, f"Method not found: {method}")
@@ -462,42 +940,57 @@ def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return error(-32603, f"{type(exc).__name__}: {exc}")
 
 
-def _read_message(stdin) -> Optional[Dict[str, Any]]:
+def _read_message(stdin) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Read one JSON-RPC message. Returns (msg, framing) where framing is
+    ``content-length`` (Claude Desktop / MCP TS SDK) or ``ndjson`` (Cursor / line clients).
+    ``msg is None`` means EOF.
+    """
     header = stdin.readline()
     if header == "":
-        return None
+        return None, "content-length"
     if header.lower().startswith("content-length:"):
         try:
             length = int(header.split(":", 1)[1].strip())
         except ValueError:
-            return None
+            return None, "content-length"
         while True:
             line = stdin.readline()
             if line in ("", "\n", "\r\n"):
                 break
-        body = stdin.read(length)
-        return json.loads(body)
+        raw = stdin.read(length)
+        if isinstance(raw, bytes):
+            body = raw.decode("utf-8")
+        else:
+            # Text IO: Content-Length is bytes. If the stream is UTF-8 text,
+            # ``read(length)`` is characters; hosts send ASCII JSON so this matches.
+            body = raw
+        return json.loads(body), "content-length"
     header = header.strip()
     if not header:
         return _read_message(stdin)
-    return json.loads(header)
+    return json.loads(header), "ndjson"
 
 
 def _write_message(stdout, message: Dict[str, Any], framing: str) -> None:
-    body = json.dumps(message, ensure_ascii=False, default=_json_default)
-    if framing == "content-length":
-        payload = body.encode("utf-8")
-        stdout.write(f"Content-Length: {len(payload)}\r\n\r\n")
-        stdout.write(body)
-        stdout.flush()
-    else:
+    body = json.dumps(_jsonable(message), ensure_ascii=False, default=_json_default)
+    if framing == "ndjson":
         stdout.write(body + "\n")
         stdout.flush()
+        return
+    payload = body.encode("utf-8")
+    header = f"Content-Length: {len(payload)}\r\n\r\n"
+    buf = getattr(stdout, "buffer", None)
+    if buf is not None:
+        buf.write(header.encode("ascii") + payload)
+        buf.flush()
+        return
+    stdout.write(header)
+    stdout.write(body)
+    stdout.flush()
 
 
 def run_stdio_server(stdin=None, stdout=None) -> None:
     """Serve MCP over stdio until EOF."""
-    # Bootstrap monorepo imports when launched as `python -m plaq_mcp`.
     try:
         import plaq_bootstrap  # noqa: F401
     except Exception:
@@ -507,19 +1000,27 @@ def run_stdio_server(stdin=None, stdout=None) -> None:
             sys.path.insert(0, str(root))
             import plaq_bootstrap  # noqa: F401
 
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
-    framing = "content-length"
     while True:
         try:
-            msg = _read_message(stdin)
-        except json.JSONDecodeError:
+            msg, framing = _read_message(stdin)
+        except json.JSONDecodeError as exc:
+            print(f"[plaq-mcp] invalid JSON: {exc}", file=sys.stderr)
             continue
         if msg is None:
             break
-        # First message style sticks: if it came in as raw JSON line, reply in kind.
-        # Content-Length detection happens inside _read_message; we always reply
-        # with Content-Length because that is what Claude Desktop / the TS SDK expect.
+        if not isinstance(msg, dict):
+            continue
         reply = handle_rpc(msg)
         if reply is not None:
-            _write_message(stdout, reply, framing)
+            try:
+                _write_message(stdout, reply, framing)
+            except Exception as exc:
+                print(f"[plaq-mcp] write failed: {exc}", file=sys.stderr)

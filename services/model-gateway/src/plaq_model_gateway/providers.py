@@ -203,6 +203,19 @@ class DeterministicPlanner(BaseModelProvider):
                 ),
             ]
 
+        # 5b. Toy H₂ hardware-efficient VQE (more specific than generic chemistry/vqe)
+        if any(k in g_lower for k in ["h2 hamiltonian", "hardware-efficient", "toy h2", "hea ansatz"]):
+            return [
+                PlanStep(
+                    task_id=tid,
+                    step_number=1,
+                    step_name="Run hardware-efficient VQE",
+                    criteria="Exit code 0",
+                    tool_name="quantum.vqe",
+                    tool_parameters={"hamiltonian": "h2", "maxiter": 40},
+                ),
+            ]
+
         # 6. Chemistry / VQE
         if any(k in g_lower for k in ["chemistry", "vqe", "femoco", "molecular"]):
             return [
@@ -250,6 +263,165 @@ class DeterministicPlanner(BaseModelProvider):
                     criteria="Exit code 0",
                     tool_name="quantum.threshold",
                     tool_parameters={"distances": [3], "shots_per_point": 40},
+                ),
+            ]
+
+        # 8b. NISQ noise / mitigation / routing / lattice surgery / textbook algos
+        if any(k in g_lower for k in ["depolariz", "nisq noise", "noisy circuit", "readout noise"]):
+            return [
+                PlanStep(
+                    task_id=tid,
+                    step_number=1,
+                    step_name="Compile circuit",
+                    criteria="Circuit depth > 0",
+                    tool_name="quantum.compile",
+                    tool_parameters={"workload": "bell"},
+                ),
+                PlanStep(
+                    task_id=tid,
+                    step_number=2,
+                    step_name="Noisy vs ideal simulation",
+                    criteria="Exit code 0",
+                    tool_name="quantum.noise",
+                    tool_parameters={"workload": "bell", "shots": 1024, "p2": 0.02},
+                ),
+            ]
+        if any(k in g_lower for k in ["zne", "zero-noise", "error mitigation", "readout mitigation"]):
+            return [
+                PlanStep(
+                    task_id=tid,
+                    step_number=1,
+                    step_name="Compile circuit",
+                    criteria="Circuit depth > 0",
+                    tool_name="quantum.compile",
+                    tool_parameters={"workload": "bell"},
+                ),
+                PlanStep(
+                    task_id=tid,
+                    step_number=2,
+                    step_name="ZNE + readout inversion",
+                    criteria="Exit code 0",
+                    tool_name="quantum.mitigate",
+                    tool_parameters={"workload": "bell", "observable": "success"},
+                ),
+            ]
+        if any(k in g_lower for k in ["transpile", "heavy-hex", "coupling map", "swap routing"]):
+            return [
+                PlanStep(
+                    task_id=tid,
+                    step_number=1,
+                    step_name="Compile circuit",
+                    criteria="Circuit depth > 0",
+                    tool_name="quantum.compile",
+                    tool_parameters={"workload": "qft", "qubits": 4},
+                ),
+                PlanStep(
+                    task_id=tid,
+                    step_number=2,
+                    step_name="Route onto coupling map",
+                    criteria="Exit code 0",
+                    tool_name="quantum.transpile",
+                    tool_parameters={"workload": "qft", "qubits": 4, "topology": "heavy_hex"},
+                ),
+            ]
+        if any(k in g_lower for k in ["lattice surgery", "magic-state factory", "patch layout"]):
+            return [
+                PlanStep(
+                    task_id=tid,
+                    step_number=1,
+                    step_name="Compile logical circuit",
+                    criteria="Circuit depth > 0",
+                    tool_name="quantum.compile",
+                    tool_parameters={"workload": "qft", "qubits": 4},
+                ),
+                PlanStep(
+                    task_id=tid,
+                    step_number=2,
+                    step_name="Lattice-surgery resource plan",
+                    criteria="Exit code 0",
+                    tool_name="quantum.surgery",
+                    tool_parameters={"workload": "qft", "qubits": 4, "code_distance": 3},
+                ),
+            ]
+        if any(k in g_lower for k in ["grover", "teleport", "deutsch", "qpe", "phase estimation"]):
+            wl = "grover"
+            if "teleport" in g_lower:
+                wl = "teleport"
+            elif "deutsch" in g_lower:
+                wl = "deutsch"
+            elif "qpe" in g_lower or "phase estimation" in g_lower:
+                wl = "qpe"
+            return [
+                PlanStep(
+                    task_id=tid,
+                    step_number=1,
+                    step_name=f"Compile {wl}",
+                    criteria="Circuit depth > 0",
+                    tool_name="quantum.compile",
+                    tool_parameters={"workload": wl},
+                ),
+                PlanStep(
+                    task_id=tid,
+                    step_number=2,
+                    step_name="Statevector simulation",
+                    criteria="Exit code 0",
+                    tool_name="quantum.run",
+                    tool_parameters={"workload": wl},
+                ),
+            ]
+
+        # 8c. Sampler / Estimator / DD / VQE / Pauli frame / repetition / bundle
+        if any(k in g_lower for k in ["estimator primitive", "expectation value", "pauli observable"]):
+            return [
+                PlanStep(
+                    task_id=tid, step_number=1, step_name="Compile circuit",
+                    criteria="Circuit depth > 0", tool_name="quantum.compile",
+                    tool_parameters={"workload": "bell"},
+                ),
+                PlanStep(
+                    task_id=tid, step_number=2, step_name="Estimate Pauli observable",
+                    criteria="Exit code 0", tool_name="quantum.estimator",
+                    tool_parameters={"workload": "bell", "observable": "ZZ"},
+                ),
+            ]
+        if any(k in g_lower for k in ["sampler primitive", "shot distribution"]):
+            return [
+                PlanStep(
+                    task_id=tid, step_number=1, step_name="Sample bitstrings",
+                    criteria="Exit code 0", tool_name="quantum.sampler",
+                    tool_parameters={"workload": "bell", "shots": 1024},
+                ),
+            ]
+        if any(k in g_lower for k in ["dynamical decoupling", "pauli twirl", "xpxm"]):
+            return [
+                PlanStep(
+                    task_id=tid, step_number=1, step_name="DD + twirl vs noise",
+                    criteria="Exit code 0", tool_name="quantum.suppress",
+                    tool_parameters={"workload": "bell", "sequence": "XpXm"},
+                ),
+            ]
+        if any(k in g_lower for k in ["pauli frame"]):
+            return [
+                PlanStep(
+                    task_id=tid, step_number=1, step_name="Track Pauli frame",
+                    criteria="Exit code 0", tool_name="quantum.frame",
+                    tool_parameters={"workload": "qft", "qubits": 4},
+                ),
+            ]
+        if any(k in g_lower for k in ["repetition code"]):
+            return [
+                PlanStep(
+                    task_id=tid, step_number=1, step_name="Repetition-code Monte Carlo",
+                    criteria="Exit code 0", tool_name="quantum.repetition",
+                    tool_parameters={"distance": 3, "physical_error": 0.1, "shots": 2000},
+                ),
+            ]
+        if any(k in g_lower for k in ["job bundle", "export qasm", "qasm3"]):
+            return [
+                PlanStep(
+                    task_id=tid, step_number=1, step_name="Export job bundle",
+                    criteria="Exit code 0", tool_name="quantum.bundle",
+                    tool_parameters={"workload": "bell"},
                 ),
             ]
 
@@ -391,6 +563,18 @@ PLANNER_TOOL_CATALOG: List[Dict[str, str]] = [
     {"name": "quantum.qasm", "description": "Compile OpenQASM 2.0"},
     {"name": "quantum.workloads", "description": "List named workloads"},
     {"name": "quantum.hardware", "description": "List hardware profiles"},
+    {"name": "quantum.noise", "description": "NISQ depolarizing+readout noise vs ideal"},
+    {"name": "quantum.mitigate", "description": "Readout inversion + zero-noise extrapolation"},
+    {"name": "quantum.transpile", "description": "SWAP routing on linear/grid/heavy-hex"},
+    {"name": "quantum.surgery", "description": "Lattice-surgery patch/factory resource plan"},
+    {"name": "quantum.draw", "description": "ASCII/Mermaid circuit diagram"},
+    {"name": "quantum.sampler", "description": "Local SamplerV2 analogue"},
+    {"name": "quantum.estimator", "description": "Local EstimatorV2 analogue"},
+    {"name": "quantum.suppress", "description": "XpXm dynamical decoupling + Pauli twirling"},
+    {"name": "quantum.vqe", "description": "Hardware-efficient VQE on toy H2"},
+    {"name": "quantum.frame", "description": "Deferred Pauli-frame updates"},
+    {"name": "quantum.repetition", "description": "Bit-flip repetition code without Stim"},
+    {"name": "quantum.bundle", "description": "Export QASM2/3 job bundle"},
     {"name": "artifacts.publish", "description": "Publish a content-addressed artifact"},
 ]
 

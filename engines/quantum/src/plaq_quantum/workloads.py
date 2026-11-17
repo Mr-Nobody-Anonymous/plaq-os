@@ -44,6 +44,16 @@ WORKLOAD_ALIASES: Dict[str, str] = {
     "rz_cx": "test_rz_cx_5q",
     "bell": "bell",
     "ghz": "ghz",
+    "grover": "grover",
+    "teleport": "teleport",
+    "teleportation": "teleport",
+    "qpe": "qpe",
+    "phase_estimation": "qpe",
+    "deutsch": "deutsch_jozsa",
+    "deutsch_jozsa": "deutsch_jozsa",
+    "dj": "deutsch_jozsa",
+    "toffoli": "toffoli",
+    "ccx": "toffoli",
 }
 
 
@@ -118,6 +128,25 @@ def resolve_circuit(
     if key == "ghz":
         return make_ghz_circuit(qubits or 3)
 
+    from .algorithms import (
+        make_deutsch_jozsa_circuit,
+        make_grover_circuit,
+        make_qpe_circuit,
+        make_teleport_circuit,
+        make_toffoli_circuit,
+    )
+
+    if key == "grover":
+        return make_grover_circuit(qubits or 2)
+    if key == "teleport":
+        return make_teleport_circuit()
+    if key == "qpe":
+        return make_qpe_circuit()
+    if key == "deutsch_jozsa":
+        return make_deutsch_jozsa_circuit(balanced=True)
+    if key == "toffoli":
+        return make_toffoli_circuit()
+
     n = qubits
     factories = {
         "test_rz_cx_5q": lambda: make_test_circuit(n or 5),
@@ -156,6 +185,26 @@ def resolve_circuit(
         return make_ghz_circuit(n or 3)
     if "bell" in key:
         return make_bell_circuit()
+    if "grover" in key:
+        from .algorithms import make_grover_circuit
+
+        return make_grover_circuit(n or 2)
+    if "teleport" in key:
+        from .algorithms import make_teleport_circuit
+
+        return make_teleport_circuit()
+    if "qpe" in key or "phase" in key:
+        from .algorithms import make_qpe_circuit
+
+        return make_qpe_circuit()
+    if "deutsch" in key:
+        from .algorithms import make_deutsch_jozsa_circuit
+
+        return make_deutsch_jozsa_circuit()
+    if "toffoli" in key or key == "ccx":
+        from .algorithms import make_toffoli_circuit
+
+        return make_toffoli_circuit()
     return make_test_circuit(n or 4)
 
 
@@ -189,6 +238,23 @@ def list_workloads() -> List[Dict[str, Any]]:
             "aliases": ["ghz"],
         }
     )
+    extra = [
+        ("grover", "search", "Grover search (1 iteration, marked |1…1⟩)", 2, ["grover"]),
+        ("teleport", "protocol", "Quantum teleportation encoding circuit", 3, ["teleport", "teleportation"]),
+        ("qpe", "phase", "3-qubit QPE of S on |1⟩", 3, ["qpe", "phase_estimation"]),
+        ("deutsch_jozsa", "oracles", "2-qubit Deutsch–Jozsa (balanced oracle)", 2, ["deutsch", "dj"]),
+        ("toffoli", "arithmetic", "Toffoli / CCX kernel", 3, ["toffoli", "ccx"]),
+    ]
+    for wid, family, task, nq, aliases in extra:
+        out.append(
+            {
+                "id": wid,
+                "family": family,
+                "mathematical_task": task,
+                "logical_qubits": nq,
+                "aliases": aliases,
+            }
+        )
     return out
 
 
@@ -232,4 +298,8 @@ def circuit_to_qasm(circuit: QuantumCircuit) -> str:
 
 
 def available_workload_ids() -> List[str]:
-    return sorted(set(get_benchmark_workloads().keys()) | set(WORKLOAD_ALIASES.keys()) | {"bell", "ghz"})
+    return sorted(
+        set(get_benchmark_workloads().keys())
+        | set(WORKLOAD_ALIASES.keys())
+        | {"bell", "ghz", "grover", "teleport", "qpe", "deutsch_jozsa", "toffoli"}
+    )

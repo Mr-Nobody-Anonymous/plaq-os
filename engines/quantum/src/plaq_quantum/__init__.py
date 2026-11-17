@@ -18,6 +18,18 @@ from . import search_algorithms
 from . import benchmark
 from . import workloads
 from . import simulation
+from . import algorithms
+from . import noise
+from . import mitigation
+from . import transpiler
+from . import surgery
+from . import visualize
+from . import primitives
+from . import suppression
+from . import pauli_frame
+from . import repetition
+from . import vqe
+from . import bundle
 
 from .circuits import (
     make_test_circuit,
@@ -128,6 +140,18 @@ __all__ = [
     "benchmark",
     "workloads",
     "simulation",
+    "algorithms",
+    "noise",
+    "mitigation",
+    "transpiler",
+    "surgery",
+    "visualize",
+    "primitives",
+    "suppression",
+    "pauli_frame",
+    "repetition",
+    "vqe",
+    "bundle",
     # circuits
     "make_test_circuit",
     "make_qaoa_circuit",

@@ -43,24 +43,48 @@ from plaq_agent_runtime.tools.terminal_tools import (
 )
 from plaq_agent_runtime.tools.quantum_tools import (
     QuantumBaselinesParams,
+    QuantumBundleParams,
     QuantumCompileParams,
+    QuantumDrawParams,
     QuantumEstimateParams,
+    QuantumEstimatorParams,
+    QuantumFrameParams,
     QuantumHardwareParams,
+    QuantumMitigateParams,
+    QuantumNoiseParams,
     QuantumOptimizeParams,
     QuantumQasmParams,
+    QuantumRepetitionParams,
     QuantumRunParams,
+    QuantumSamplerParams,
     QuantumSimulateParams,
+    QuantumSuppressParams,
+    QuantumSurgeryParams,
     QuantumThresholdParams,
+    QuantumTranspileParams,
+    QuantumVqeParams,
     QuantumWorkloadsParams,
     quantum_baselines,
+    quantum_bundle,
     quantum_compile,
+    quantum_draw,
     quantum_estimate,
+    quantum_estimator,
+    quantum_frame,
     quantum_hardware,
+    quantum_mitigate,
+    quantum_noise,
     quantum_optimize,
     quantum_qasm,
+    quantum_repetition,
     quantum_run,
+    quantum_sampler,
     quantum_simulate,
+    quantum_suppress,
+    quantum_surgery,
     quantum_threshold,
+    quantum_transpile,
+    quantum_vqe,
     quantum_workloads,
 )
 from plaq_agent_runtime.tools.artifact_tools import (
@@ -482,6 +506,138 @@ def create_default_tool_registry() -> ToolRegistry:
         ),
         quantum_hardware,
         QuantumHardwareParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.noise",
+            description="Phenomenological NISQ noise (depolarizing + readout) vs ideal statevector.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumNoiseParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_noise,
+        QuantumNoiseParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.mitigate",
+            description="Readout inversion + zero-noise extrapolation (ZNE) on a circuit observable.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumMitigateParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_mitigate,
+        QuantumMitigateParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.transpile",
+            description="Topology-aware SWAP routing (linear, grid, IBM-like heavy-hex).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumTranspileParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_transpile,
+        QuantumTranspileParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.surgery",
+            description="Lattice-surgery resource plan: patches, 15-to-1 T factories, code cycles.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumSurgeryParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_surgery,
+        QuantumSurgeryParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.draw",
+            description="ASCII and Mermaid diagrams of a named workload or OpenQASM circuit.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumDrawParams.model_json_schema(),
+            timeout_sec=15.0,
+        ),
+        quantum_draw,
+        QuantumDrawParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.sampler",
+            description="Local SamplerV2 analogue: shot counts from the statevector.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumSamplerParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_sampler,
+        QuantumSamplerParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.estimator",
+            description="Local EstimatorV2 analogue: Pauli expectation ⟨P⟩.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumEstimatorParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_estimator,
+        QuantumEstimatorParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.suppress",
+            description="Dynamical decoupling (XpXm) + Pauli twirling vs phenomenological noise.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumSuppressParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_suppress,
+        QuantumSuppressParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.vqe",
+            description="Hardware-efficient VQE on a 2-qubit toy H₂ Hamiltonian.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumVqeParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_vqe,
+        QuantumVqeParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.frame",
+            description="Deferred Pauli-frame update counts for a logical circuit.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumFrameParams.model_json_schema(),
+            timeout_sec=15.0,
+        ),
+        quantum_frame,
+        QuantumFrameParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.repetition",
+            description="Bit-flip repetition-code Monte Carlo (works without Stim).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumRepetitionParams.model_json_schema(),
+            timeout_sec=15.0,
+        ),
+        quantum_repetition,
+        QuantumRepetitionParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.bundle",
+            description="Export a versioned job bundle (QASM2/3 + metrics + FT estimate).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumBundleParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_bundle,
+        QuantumBundleParams,
     )
 
     # 6. Privileged Tier

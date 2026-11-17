@@ -170,6 +170,10 @@ python plaq.py quantum compile qft --qubits 4
 python plaq.py quantum estimate --qubits 4 --depth 9 --hardware ibm_falcon
 python plaq.py quantum benchmark --json
 python plaq.py quantum run bell --json
+python plaq.py quantum noise bell --p2 0.03 --json
+python plaq.py quantum mitigate bell --json
+python plaq.py quantum transpile qft --topology heavy_hex --json
+python plaq.py quantum surgery qft --distance 5 --json
 
 # 3. Workspace Inspection
 python plaq.py workspace status
