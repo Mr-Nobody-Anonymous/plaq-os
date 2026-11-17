@@ -22,6 +22,13 @@ Plaq-OS now exposes the fault-tolerant quantum engine to **agents** three ways:
 | `quantum.transpile` | SWAP count on linear/grid/heavy-hex | BFS router |
 | `quantum.surgery` | Patches, 15-to-1 factories, code cycles | Litinski / Fowler model |
 | `quantum.draw` | ASCII + Mermaid | Qiskit text drawer |
+| `quantum.sampler` | Shot counts from the ideal statevector | local SamplerV2 analogue |
+| `quantum.estimator` | Pauli expectation ⟨P⟩ | local EstimatorV2 analogue |
+| `quantum.suppress` | XpXm dynamical decoupling + CX Pauli twirl | gate-level analogue |
+| `quantum.vqe` | Hardware-efficient VQE on toy H₂ | SciPy COBYLA + statevector |
+| `quantum.frame` | Deferred Pauli-frame updates | FTQC compiler artefact |
+| `quantum.repetition` | Majority-vote bit-flip repetition code | Stim-free QEC demo |
+| `quantum.bundle` | OpenQASM 2/3 + metrics + FT estimate | versioned job bundle |
 
 Workloads: `bell`, `ghz`, `qaoa` / `qaoa_cycle_6q`, `qft`, `bv`, `chemistry` / FeMoCo, `shor`, `clifford_t`, plus any OpenQASM 2.0 body.
 
@@ -57,11 +64,15 @@ Claude Desktop snippet:
 }
 ```
 
-Tools: `quantum_compile`, `quantum_estimate`, `quantum_simulate`, `quantum_run`, `quantum_optimize`, `quantum_baselines`, `quantum_threshold`, `quantum_workloads`, `quantum_hardware`, `quantum_noise`, `quantum_mitigate`, `quantum_transpile`, `quantum_surgery`, `quantum_draw`, `quantum_qasm`, `task_create`, `task_run`, `task_status`.
+Tools: `quantum_compile`, `quantum_estimate`, `quantum_simulate`, `quantum_run`, `quantum_optimize`, `quantum_baselines`, `quantum_threshold`, `quantum_workloads`, `quantum_hardware`, `quantum_noise`, `quantum_mitigate`, `quantum_transpile`, `quantum_surgery`, `quantum_draw`, `quantum_sampler`, `quantum_estimator`, `quantum_suppress`, `quantum_vqe`, `quantum_frame`, `quantum_repetition`, `quantum_bundle`, `quantum_qasm`, `task_create`, `task_run`, `task_status`.
 
-Prompts: `nisq_lab`, `ftqc_estimate`, `lattice_surgery`. Stdio accepts **Content-Length** (Claude Desktop) and **NDJSON** (Cursor / line clients). `quantum_simulate` returns a clean tool error if Stim is missing instead of crashing the host.
+Prompts: `nisq_lab`, `ftqc_estimate`, `lattice_surgery`, `vqe_h2`, `job_bundle`. Stdio accepts **Content-Length** (Claude Desktop) and **NDJSON** (Cursor / line clients). `quantum_simulate` returns a clean tool error if Stim is missing instead of crashing the host.
+
+Successful tool calls include MCP 2025-06-18 `structuredContent` (JSON object) next to the text block. Argument completion is advertised as `completions` and served at `completion/complete`.
 
 Resources: `plaq://workloads`, `plaq://hardware`, `plaq://tools`.
+
+Workbench file explorer is live via `GET /api/v1/workspace/tree` (PathGuard-confined to `PLAQ_WORKSPACE` or cwd).
 
 ## Auth
 

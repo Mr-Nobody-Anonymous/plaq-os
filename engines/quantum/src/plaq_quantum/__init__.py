@@ -24,6 +24,12 @@ from . import mitigation
 from . import transpiler
 from . import surgery
 from . import visualize
+from . import primitives
+from . import suppression
+from . import pauli_frame
+from . import repetition
+from . import vqe
+from . import bundle
 
 from .circuits import (
     make_test_circuit,
@@ -140,6 +146,12 @@ __all__ = [
     "transpiler",
     "surgery",
     "visualize",
+    "primitives",
+    "suppression",
+    "pauli_frame",
+    "repetition",
+    "vqe",
+    "bundle",
     # circuits
     "make_test_circuit",
     "make_qaoa_circuit",

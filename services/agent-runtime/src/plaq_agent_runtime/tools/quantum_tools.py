@@ -195,6 +195,59 @@ class QuantumDrawParams(PlaqBaseModel):
     bitstring: Optional[str] = None
 
 
+class QuantumSamplerParams(PlaqBaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    shots: int = Field(default=1024)
+    seed: int = Field(default=42)
+
+
+class QuantumEstimatorParams(PlaqBaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    observable: str = Field(default="ZZ")
+    shots: int = Field(default=0)
+
+
+class QuantumSuppressParams(PlaqBaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    sequence: str = Field(default="XpXm")
+    twirl_randomizations: int = Field(default=4)
+    p2: float = Field(default=0.02)
+    observable: str = Field(default="ZZ")
+
+
+class QuantumVqeParams(PlaqBaseModel):
+    maxiter: int = Field(default=40)
+    seed: int = Field(default=0)
+    hamiltonian: str = Field(default="h2")
+
+
+class QuantumFrameParams(PlaqBaseModel):
+    workload: Optional[str] = Field(default="qft")
+    qubits: Optional[int] = Field(default=4)
+    qasm: Optional[str] = None
+    code_distance: int = Field(default=3)
+
+
+class QuantumRepetitionParams(PlaqBaseModel):
+    distance: int = Field(default=3)
+    physical_error: float = Field(default=0.1)
+    shots: int = Field(default=2000)
+    seed: int = Field(default=0)
+
+
+class QuantumBundleParams(PlaqBaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    hardware_profile: str = Field(default="superconducting")
+
+
 def quantum_compile(params: QuantumCompileParams, context: Any) -> ToolResult:
     """Synthesize circuit, decompose single-qubit rotations, and extract fault-tolerant metrics."""
     t0 = time.perf_counter()
@@ -554,5 +607,119 @@ def quantum_draw(params: QuantumDrawParams, context: Any) -> ToolResult:
             bitstring=params.bitstring,
         )
         return _ok(t0, res.to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_sampler(params: QuantumSamplerParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.primitives import run_sampler
+
+        return _ok(t0, run_sampler(workload=params.workload, qubits=params.qubits, qasm=params.qasm, shots=params.shots, seed=params.seed).to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_estimator(params: QuantumEstimatorParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.primitives import run_estimator
+
+        return _ok(
+            t0,
+            run_estimator(
+                workload=params.workload,
+                qubits=params.qubits,
+                qasm=params.qasm,
+                observable=params.observable,
+                shots=params.shots,
+            ).to_dict(),
+        )
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_suppress(params: QuantumSuppressParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.suppression import run_suppression
+
+        return _ok(
+            t0,
+            run_suppression(
+                workload=params.workload,
+                qubits=params.qubits,
+                qasm=params.qasm,
+                sequence=params.sequence,
+                twirl_randomizations=params.twirl_randomizations,
+                p2=params.p2,
+                observable=params.observable,
+            ).to_dict(),
+        )
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_vqe(params: QuantumVqeParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.vqe import run_vqe
+
+        return _ok(t0, run_vqe(maxiter=params.maxiter, seed=params.seed, hamiltonian=params.hamiltonian).to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_frame(params: QuantumFrameParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.pauli_frame import track_pauli_frame
+
+        return _ok(
+            t0,
+            track_pauli_frame(
+                workload=params.workload,
+                qubits=params.qubits,
+                qasm=params.qasm,
+                code_distance=params.code_distance,
+            ).to_dict(),
+        )
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_repetition(params: QuantumRepetitionParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.repetition import run_repetition_code
+
+        return _ok(
+            t0,
+            run_repetition_code(
+                distance=params.distance,
+                physical_error=params.physical_error,
+                shots=params.shots,
+                seed=params.seed,
+            ).to_dict(),
+        )
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_bundle(params: QuantumBundleParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.bundle import export_bundle
+
+        return _ok(
+            t0,
+            export_bundle(
+                workload=params.workload,
+                qubits=params.qubits,
+                qasm=params.qasm,
+                hardware_profile=params.hardware_profile,
+            ).to_dict(),
+        )
     except Exception as exc:
         return _err(t0, exc)

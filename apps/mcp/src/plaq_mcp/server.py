@@ -66,9 +66,14 @@ def _jsonable(obj: Any) -> Any:
 def _ok_text(payload: Any) -> Dict[str, Any]:
     if isinstance(payload, str):
         text = payload
+        structured: Any = None
     else:
-        text = json.dumps(_jsonable(payload), indent=2, default=_json_default)
-    return {"content": [{"type": "text", "text": text}], "isError": False}
+        structured = _jsonable(payload)
+        text = json.dumps(structured, indent=2, default=_json_default)
+    out: Dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": False}
+    if isinstance(structured, dict):
+        out["structuredContent"] = structured
+    return out
 
 
 def _err_text(message: str) -> Dict[str, Any]:
@@ -230,6 +235,71 @@ def tool_catalog() -> List[Dict[str, Any]]:
             {"workload": {"type": "string", "default": "bell"}, "qubits": {"type": "integer"}},
         ),
         _tool(
+            "quantum_sampler",
+            "Local SamplerV2 analogue: shot counts from the ideal statevector.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "shots": {"type": "integer", "default": 1024},
+                "seed": {"type": "integer", "default": 42},
+            },
+        ),
+        _tool(
+            "quantum_estimator",
+            "Local EstimatorV2 analogue: Pauli expectation ⟨P⟩.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "observable": {"type": "string", "default": "ZZ"},
+                "shots": {"type": "integer", "default": 0},
+            },
+        ),
+        _tool(
+            "quantum_suppress",
+            "Gate-level XpXm dynamical decoupling + CX Pauli twirling vs phenomenological noise.",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "sequence": {"type": "string", "default": "XpXm"},
+                "twirl_randomizations": {"type": "integer", "default": 4},
+                "p2": {"type": "number", "default": 0.02},
+                "observable": {"type": "string", "default": "ZZ"},
+            },
+        ),
+        _tool(
+            "quantum_vqe",
+            "Hardware-efficient VQE on a 2-qubit toy H₂ Hamiltonian (no PySCF).",
+            {
+                "maxiter": {"type": "integer", "default": 40},
+                "seed": {"type": "integer", "default": 0},
+                "hamiltonian": {"type": "string", "default": "h2"},
+            },
+        ),
+        _tool(
+            "quantum_frame",
+            "Deferred Pauli-frame update counts for a logical circuit.",
+            {
+                "workload": {"type": "string", "default": "qft"},
+                "qubits": {"type": "integer", "default": 4},
+                "code_distance": {"type": "integer", "default": 3},
+            },
+        ),
+        _tool(
+            "quantum_repetition",
+            "Bit-flip repetition-code Monte Carlo (works without Stim).",
+            {
+                "distance": {"type": "integer", "default": 3},
+                "physical_error": {"type": "number", "default": 0.1},
+                "shots": {"type": "integer", "default": 2000},
+                "seed": {"type": "integer", "default": 0},
+            },
+        ),
+        _tool(
+            "quantum_bundle",
+            "Export a versioned job bundle (OpenQASM 2/3 + metrics + FT estimate).",
+            {
+                "workload": {"type": "string", "default": "bell"},
+                "hardware_profile": {"type": "string", "default": "superconducting"},
+            },
+        ),
+        _tool(
             "quantum_qasm",
             "Compile an OpenQASM 2.0 body and extract circuit metrics.",
             {"qasm": {"type": "string", "description": "OpenQASM 2.0 source"}},
@@ -282,6 +352,18 @@ def prompt_catalog() -> List[Dict[str, Any]]:
                 {"name": "distance", "description": "Code distance d (odd integer >= 3)", "required": False},
             ],
         },
+        {
+            "name": "vqe_h2",
+            "description": "Run the local hardware-efficient VQE on toy H₂.",
+            "arguments": [],
+        },
+        {
+            "name": "job_bundle",
+            "description": "Export an OpenQASM 2/3 job bundle for a named workload.",
+            "arguments": [
+                {"name": "workload", "description": "Named circuit", "required": False},
+            ],
+        },
     ]
 
 
@@ -302,6 +384,14 @@ def _render_prompt(name: str, arguments: Optional[Dict[str, Any]] = None) -> Dic
         "lattice_surgery": (
             f"Call quantum_surgery with workload={wl} and code_distance={d}. "
             "Explain physical qubit total, factory count, and decoder_backlog_safe."
+        ),
+        "vqe_h2": (
+            "Call quantum_vqe with hamiltonian=h2 and maxiter=40. "
+            "Compare energy to exact_diagonal and say whether the gap is small."
+        ),
+        "job_bundle": (
+            f"Call quantum_bundle with workload={wl}. Summarize qasm2 header, "
+            "code_distance, and physical_qubits."
         ),
     }
     if name not in texts:
@@ -565,6 +655,87 @@ def _dispatch_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                     qasm=args.get("qasm"),
                 ).to_dict()
             )
+        if name == "quantum_sampler":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.primitives.run_sampler(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    shots=_get_int(args, "shots", 1024) or 1024,
+                    seed=_get_int(args, "seed", 42) or 42,
+                ).to_dict()
+            )
+        if name == "quantum_estimator":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.primitives.run_estimator(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    observable=str(args.get("observable") or "ZZ"),
+                    shots=_get_int(args, "shots", 0) or 0,
+                ).to_dict()
+            )
+        if name == "quantum_suppress":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.suppression.run_suppression(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    sequence=str(args.get("sequence") or "XpXm"),
+                    twirl_randomizations=_get_int(args, "twirl_randomizations", 4) or 4,
+                    p2=_get_float(args, "p2", 0.02) or 0.0,
+                    observable=str(args.get("observable") or "ZZ"),
+                ).to_dict()
+            )
+        if name == "quantum_vqe":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.vqe.run_vqe(
+                    maxiter=_get_int(args, "maxiter", 40) or 40,
+                    seed=_get_int(args, "seed", 0) or 0,
+                    hamiltonian=str(args.get("hamiltonian") or "h2"),
+                ).to_dict()
+            )
+        if name == "quantum_frame":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.pauli_frame.track_pauli_frame(
+                    workload=args.get("workload") or "qft",
+                    qubits=_get_int(args, "qubits", 4),
+                    qasm=args.get("qasm"),
+                    code_distance=_get_int(args, "code_distance", 3) or 3,
+                ).to_dict()
+            )
+        if name == "quantum_repetition":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.repetition.run_repetition_code(
+                    distance=_get_int(args, "distance", 3) or 3,
+                    physical_error=_get_float(args, "physical_error", 0.1) or 0.0,
+                    shots=_get_int(args, "shots", 2000) or 2000,
+                    seed=_get_int(args, "seed", 0) or 0,
+                ).to_dict()
+            )
+        if name == "quantum_bundle":
+            import plaq_quantum as pq
+
+            return _ok_text(
+                pq.bundle.export_bundle(
+                    workload=args.get("workload") or "bell",
+                    qubits=_get_int(args, "qubits", None),
+                    qasm=args.get("qasm"),
+                    hardware_profile=str(args.get("hardware_profile") or "superconducting"),
+                ).to_dict()
+            )
         if name == "quantum_qasm":
             qasm = args.get("qasm")
             if not qasm:
@@ -636,6 +807,51 @@ def _read_resource(uri: str) -> Dict[str, Any]:
     return {"contents": [{"uri": uri, "mimeType": "application/json", "text": body}]}
 
 
+def _completion_pool(argument_name: str) -> List[str]:
+    name = (argument_name or "").lower()
+    if name in {"workload"}:
+        try:
+            from plaq_quantum.workloads import available_workload_ids
+
+            return list(available_workload_ids())
+        except Exception:
+            return ["bell", "ghz", "qft", "qaoa", "bv", "chemistry", "shor", "grover", "teleport"]
+    if name in {"hardware_profile", "hardware"}:
+        return ["superconducting", "trapped_ion", "neutral_atom", "qldpc", "demo", "demo-illustrative"]
+    if name == "topology":
+        return ["linear", "grid", "heavy_hex", "all"]
+    if name == "observable":
+        return ["ZZ", "XX", "Z", "X", "success"]
+    if name == "sequence":
+        return ["XpXm", "XY4", "XX"]
+    if name in {"distance", "code_distance"}:
+        return ["3", "5", "7", "9"]
+    if name == "hamiltonian":
+        return ["h2", "hydrogen", "sto3g"]
+    if name == "uri":
+        return ["plaq://workloads", "plaq://hardware", "plaq://tools"]
+    return []
+
+
+def _handle_complete(params: Dict[str, Any]) -> Dict[str, Any]:
+    """MCP 2025-06-18 completion/complete for prompt/tool/resource arguments."""
+    ref = params.get("ref") or {}
+    argument = params.get("argument") or {}
+    arg_name = str(argument.get("name") or "")
+    arg_value = str(argument.get("value") or "")
+    rtype = str(ref.get("type") or "")
+    if rtype in {"ref/resource", "ref/resource_template"} and not arg_name:
+        arg_name = "uri"
+    pool = _completion_pool(arg_name)
+    pref = arg_value.lower()
+    if pref:
+        values = [v for v in pool if v.lower().startswith(pref) or pref in v.lower()]
+    else:
+        values = list(pool)
+    values = values[:100]
+    return {"completion": {"values": values, "total": len(values), "hasMore": False}}
+
+
 def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Dispatch a single JSON-RPC request. Returns None for notifications."""
     method = message.get("method")
@@ -664,6 +880,8 @@ def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                         "tools": {"listChanged": False},
                         "resources": {"listChanged": False, "subscribe": False},
                         "prompts": {"listChanged": False},
+                        "completions": {},
+                        "logging": {},
                     },
                     "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
                     "instructions": (
@@ -711,6 +929,8 @@ def handle_rpc(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 return result(_render_prompt(str(pname), params.get("arguments") or {}))
             except KeyError as exc:
                 return error(-32602, str(exc))
+        if method == "completion/complete":
+            return result(_handle_complete(params if isinstance(params, dict) else {}))
         if is_notification:
             return None
         return error(-32601, f"Method not found: {method}")

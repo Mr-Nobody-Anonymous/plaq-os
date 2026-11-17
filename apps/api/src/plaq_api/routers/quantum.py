@@ -317,6 +317,59 @@ class QuantumDrawPayload(BaseModel):
     qasm: Optional[str] = None
 
 
+class QuantumSamplerPayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    shots: int = Field(default=1024)
+    seed: int = Field(default=42)
+
+
+class QuantumEstimatorPayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    observable: str = Field(default="ZZ")
+    shots: int = Field(default=0)
+
+
+class QuantumSuppressPayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    sequence: str = Field(default="XpXm")
+    twirl_randomizations: int = Field(default=4)
+    p2: float = Field(default=0.02)
+    observable: str = Field(default="ZZ")
+
+
+class QuantumVqePayload(BaseModel):
+    maxiter: int = Field(default=40)
+    seed: int = Field(default=0)
+    hamiltonian: str = Field(default="h2")
+
+
+class QuantumFramePayload(BaseModel):
+    workload: Optional[str] = Field(default="qft")
+    qubits: Optional[int] = Field(default=4)
+    qasm: Optional[str] = None
+    code_distance: int = Field(default=3)
+
+
+class QuantumRepetitionPayload(BaseModel):
+    distance: int = Field(default=3)
+    physical_error: float = Field(default=0.1)
+    shots: int = Field(default=2000)
+    seed: int = Field(default=0)
+
+
+class QuantumBundlePayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    hardware_profile: str = Field(default="superconducting")
+
+
 @router.post("/noise")
 def noisy_run(payload: QuantumNoisePayload) -> Dict[str, Any]:
     """Phenomenological depolarizing + readout noise vs ideal."""
@@ -399,6 +452,111 @@ def draw_run(payload: QuantumDrawPayload) -> Dict[str, Any]:
             workload=payload.workload,
             qubits=payload.qubits,
             qasm=payload.qasm,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/sampler")
+def sampler_run(payload: QuantumSamplerPayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.primitives import run_sampler
+
+        return run_sampler(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            shots=payload.shots,
+            seed=payload.seed,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/estimator")
+def estimator_run(payload: QuantumEstimatorPayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.primitives import run_estimator
+
+        return run_estimator(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            observable=payload.observable,
+            shots=payload.shots,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/suppress")
+def suppress_run(payload: QuantumSuppressPayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.suppression import run_suppression
+
+        return run_suppression(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            sequence=payload.sequence,
+            twirl_randomizations=payload.twirl_randomizations,
+            p2=payload.p2,
+            observable=payload.observable,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/vqe")
+def vqe_run(payload: QuantumVqePayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.vqe import run_vqe
+
+        return run_vqe(maxiter=payload.maxiter, seed=payload.seed, hamiltonian=payload.hamiltonian).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/frame")
+def frame_run(payload: QuantumFramePayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.pauli_frame import track_pauli_frame
+
+        return track_pauli_frame(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            code_distance=payload.code_distance,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/repetition")
+def repetition_run(payload: QuantumRepetitionPayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.repetition import run_repetition_code
+
+        return run_repetition_code(
+            distance=payload.distance,
+            physical_error=payload.physical_error,
+            shots=payload.shots,
+            seed=payload.seed,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/bundle")
+def bundle_run(payload: QuantumBundlePayload) -> Dict[str, Any]:
+    try:
+        from plaq_quantum.bundle import export_bundle
+
+        return export_bundle(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            hardware_profile=payload.hardware_profile,
         ).to_dict()
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
