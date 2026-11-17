@@ -17,6 +17,11 @@ Plaq-OS now exposes the fault-tolerant quantum engine to **agents** three ways:
 | `quantum.estimate` | d, physical qubits, runtime, P_fail | rotated surface-code cost model |
 | `quantum.optimize` | Pareto frontier over compiler / factories / decoder / QEC | joint co-design search |
 | `quantum.baselines` | Raw vs Qiskit-L3 vs decoupled vs joint | 4-baselines protocol |
+| `quantum.noise` | Ideal vs depolarizing+readout TVD | phenomenological NISQ model |
+| `quantum.mitigate` | Readout inversion + ZNE | Temme et al. 2017 |
+| `quantum.transpile` | SWAP count on linear/grid/heavy-hex | BFS router |
+| `quantum.surgery` | Patches, 15-to-1 factories, code cycles | Litinski / Fowler model |
+| `quantum.draw` | ASCII + Mermaid | Qiskit text drawer |
 
 Workloads: `bell`, `ghz`, `qaoa` / `qaoa_cycle_6q`, `qft`, `bv`, `chemistry` / FeMoCo, `shor`, `clifford_t`, plus any OpenQASM 2.0 body.
 
@@ -52,7 +57,9 @@ Claude Desktop snippet:
 }
 ```
 
-Tools: `quantum_compile`, `quantum_estimate`, `quantum_simulate`, `quantum_run`, `quantum_optimize`, `quantum_baselines`, `quantum_threshold`, `quantum_workloads`, `quantum_hardware`, `task_create`, `task_run`, `task_status`.
+Tools: `quantum_compile`, `quantum_estimate`, `quantum_simulate`, `quantum_run`, `quantum_optimize`, `quantum_baselines`, `quantum_threshold`, `quantum_workloads`, `quantum_hardware`, `quantum_noise`, `quantum_mitigate`, `quantum_transpile`, `quantum_surgery`, `quantum_draw`, `quantum_qasm`, `task_create`, `task_run`, `task_status`.
+
+Prompts: `nisq_lab`, `ftqc_estimate`, `lattice_surgery`. Stdio accepts **Content-Length** (Claude Desktop) and **NDJSON** (Cursor / line clients). `quantum_simulate` returns a clean tool error if Stim is missing instead of crashing the host.
 
 Resources: `plaq://workloads`, `plaq://hardware`, `plaq://tools`.
 

@@ -131,6 +131,39 @@ def build_parser() -> argparse.ArgumentParser:
     quantum_sub.add_parser("workloads", help="List named quantum workloads")
     quantum_sub.add_parser("hardware", help="List calibrated hardware profiles")
 
+    q_noise = quantum_sub.add_parser("noise", help="NISQ depolarizing + readout noise vs ideal")
+    q_noise.add_argument("workload", nargs="?", default="bell")
+    q_noise.add_argument("--qubits", type=int, default=None)
+    q_noise.add_argument("--shots", type=int, default=1024)
+    q_noise.add_argument("--p1", type=float, default=0.001)
+    q_noise.add_argument("--p2", type=float, default=0.01)
+    q_noise.add_argument("--p-readout", type=float, default=0.02)
+    q_noise.add_argument("--json", action="store_true")
+
+    q_mit = quantum_sub.add_parser("mitigate", help="Readout inversion + zero-noise extrapolation")
+    q_mit.add_argument("workload", nargs="?", default="bell")
+    q_mit.add_argument("--observable", default="success")
+    q_mit.add_argument("--p2", type=float, default=0.01)
+    q_mit.add_argument("--json", action="store_true")
+
+    q_tp = quantum_sub.add_parser("transpile", help="SWAP-route onto a coupling map")
+    q_tp.add_argument("workload", nargs="?", default="qft")
+    q_tp.add_argument("--qubits", type=int, default=4)
+    q_tp.add_argument("--topology", default="linear", help="linear | grid | heavy_hex | all")
+    q_tp.add_argument("--json", action="store_true")
+
+    q_sur = quantum_sub.add_parser("surgery", help="Lattice-surgery resource plan")
+    q_sur.add_argument("workload", nargs="?", default="qft")
+    q_sur.add_argument("--qubits", type=int, default=4)
+    q_sur.add_argument("--distance", type=int, default=3)
+    q_sur.add_argument("--hardware", default="superconducting")
+    q_sur.add_argument("--json", action="store_true")
+
+    q_draw = quantum_sub.add_parser("draw", help="ASCII circuit diagram")
+    q_draw.add_argument("workload", nargs="?", default="bell")
+    q_draw.add_argument("--qubits", type=int, default=None)
+    q_draw.add_argument("--json", action="store_true")
+
     # 3. workspace group
     workspace_parser = subparsers.add_parser("workspace", help="Inspect and configure workbench workspaces")
     workspace_sub = workspace_parser.add_subparsers(dest="subcommand", help="Workspace actions")
@@ -478,8 +511,70 @@ def handle_quantum(args: argparse.Namespace) -> int:
         print(json.dumps(pq.workloads.list_hardware_profiles(), indent=2))
         return 0
 
+    elif sub == "noise":
+        import plaq_quantum as pq
+
+        res = pq.noise.run_noisy_simulation(
+            workload=args.workload,
+            qubits=args.qubits,
+            shots=args.shots,
+            p1=args.p1,
+            p2=args.p2,
+            p_readout=args.p_readout,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "mitigate":
+        import plaq_quantum as pq
+
+        res = pq.mitigation.run_mitigation(
+            workload=args.workload,
+            p2=args.p2,
+            observable=args.observable,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "transpile":
+        import plaq_quantum as pq
+
+        res = pq.transpiler.route_circuit(
+            workload=args.workload,
+            qubits=args.qubits,
+            topology=args.topology,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "surgery":
+        import plaq_quantum as pq
+
+        res = pq.surgery.plan_lattice_surgery(
+            workload=args.workload,
+            qubits=args.qubits,
+            code_distance=args.distance,
+            hardware_profile=args.hardware,
+        )
+        print(json.dumps(res.to_dict(), indent=2))
+        return 0
+
+    elif sub == "draw":
+        import plaq_quantum as pq
+
+        res = pq.visualize.draw_circuit(workload=args.workload, qubits=args.qubits)
+        if args.json:
+            print(json.dumps(res.to_dict(), indent=2))
+        else:
+            print(res.ascii)
+        return 0
+
     else:
-        print("Usage: plaq quantum [compile|estimate|benchmark|optimize|simulate|run|workloads|hardware]", file=sys.stderr)
+        print(
+            "Usage: plaq quantum [compile|estimate|benchmark|optimize|simulate|run|"
+            "workloads|hardware|noise|mitigate|transpile|surgery|draw]",
+            file=sys.stderr,
+        )
         return 1
 
 

@@ -61,6 +61,14 @@ class PlaqWorkbenchApp {
     if (runOptBtn) {
       runOptBtn.addEventListener("click", () => this.runQuantumOptimization());
     }
+    const bind = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", () => fn.call(this));
+    };
+    bind("btn-run-noise", this.runNoiseLab);
+    bind("btn-run-mitigate", this.runMitigationLab);
+    bind("btn-run-surgery", this.runSurgeryLab);
+    bind("btn-run-draw", this.runDrawLab);
   }
 
   async refreshHealth() {
@@ -183,6 +191,52 @@ class PlaqWorkbenchApp {
       }
     } catch (err) {
       this.logTerminal(`Approval decision failed: ${err.message}`, "error");
+    }
+  }
+
+  async _postQuantum(path, body, label) {
+    this.logTerminal(`${label}…`, "info");
+    try {
+      const resp = await fetch(`${this.apiBase}/api/v1/quantum/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        this.logTerminal(`${label} failed: ${data.detail || resp.status}`, "error");
+        return null;
+      }
+      this.logTerminal(`${label} ok: ${JSON.stringify(data).slice(0, 240)}`, "success");
+      return data;
+    } catch (err) {
+      this.logTerminal(`${label} failed: ${err.message}`, "error");
+      return null;
+    }
+  }
+
+  async runNoiseLab() {
+    await this._postQuantum("noise", { workload: "bell", shots: 1024, p2: 0.03 }, "NISQ noise (Bell)");
+  }
+
+  async runMitigationLab() {
+    await this._postQuantum("mitigate", { workload: "bell", observable: "success", p2: 0.03 }, "ZNE + readout");
+  }
+
+  async runSurgeryLab() {
+    await this._postQuantum(
+      "surgery",
+      { workload: "qft", qubits: 4, code_distance: 3, hardware_profile: "superconducting" },
+      "Lattice surgery plan",
+    );
+  }
+
+  async runDrawLab() {
+    const data = await this._postQuantum("draw", { workload: "bell" }, "Draw Bell");
+    const pre = document.getElementById("circuit-ascii");
+    if (pre && data && data.ascii) {
+      pre.style.display = "block";
+      pre.textContent = data.ascii;
     }
   }
 

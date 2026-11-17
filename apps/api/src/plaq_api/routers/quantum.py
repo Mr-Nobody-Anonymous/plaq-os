@@ -273,3 +273,132 @@ def get_workloads() -> Dict[str, Any]:
 @router.get("/hardware")
 def get_hardware() -> Dict[str, Any]:
     return {"profiles": pq_workloads.list_hardware_profiles()}
+
+
+class QuantumNoisePayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    shots: int = Field(default=1024)
+    seed: int = Field(default=42)
+    p1: float = Field(default=0.001)
+    p2: float = Field(default=0.01)
+    p_readout: float = Field(default=0.02)
+
+
+class QuantumMitigatePayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    p1: float = Field(default=0.001)
+    p2: float = Field(default=0.01)
+    p_readout: float = Field(default=0.02)
+    observable: str = Field(default="success")
+
+
+class QuantumTranspilePayload(BaseModel):
+    workload: Optional[str] = Field(default="qft")
+    qubits: Optional[int] = Field(default=4)
+    qasm: Optional[str] = None
+    topology: str = Field(default="linear")
+
+
+class QuantumSurgeryPayload(BaseModel):
+    workload: Optional[str] = Field(default="qft")
+    qubits: Optional[int] = Field(default=4)
+    qasm: Optional[str] = None
+    code_distance: int = Field(default=3)
+    hardware_profile: str = Field(default="superconducting")
+
+
+class QuantumDrawPayload(BaseModel):
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+
+
+@router.post("/noise")
+def noisy_run(payload: QuantumNoisePayload) -> Dict[str, Any]:
+    """Phenomenological depolarizing + readout noise vs ideal."""
+    try:
+        from plaq_quantum.noise import run_noisy_simulation
+
+        return run_noisy_simulation(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            shots=payload.shots,
+            seed=payload.seed,
+            p1=payload.p1,
+            p2=payload.p2,
+            p_readout=payload.p_readout,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/mitigate")
+def mitigate_run(payload: QuantumMitigatePayload) -> Dict[str, Any]:
+    """Readout inversion + zero-noise extrapolation."""
+    try:
+        from plaq_quantum.mitigation import run_mitigation
+
+        return run_mitigation(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            p1=payload.p1,
+            p2=payload.p2,
+            p_readout=payload.p_readout,
+            observable=payload.observable,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/transpile")
+def transpile_run(payload: QuantumTranspilePayload) -> Dict[str, Any]:
+    """SWAP-route a circuit onto a coupling map."""
+    try:
+        from plaq_quantum.transpiler import route_circuit
+
+        return route_circuit(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            topology=payload.topology,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/surgery")
+def surgery_run(payload: QuantumSurgeryPayload) -> Dict[str, Any]:
+    """Lattice-surgery patch / factory / cycle estimate."""
+    try:
+        from plaq_quantum.surgery import plan_lattice_surgery
+
+        return plan_lattice_surgery(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+            code_distance=payload.code_distance,
+            hardware_profile=payload.hardware_profile,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/draw")
+def draw_run(payload: QuantumDrawPayload) -> Dict[str, Any]:
+    """ASCII + Mermaid circuit diagram."""
+    try:
+        from plaq_quantum.visualize import draw_circuit
+
+        return draw_circuit(
+            workload=payload.workload,
+            qubits=payload.qubits,
+            qasm=payload.qasm,
+        ).to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))

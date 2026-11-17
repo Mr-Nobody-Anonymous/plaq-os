@@ -119,14 +119,19 @@
                   Trade-off optimization between Physical Qubit Overheads and Wall-Clock Runtime under Surface Code (d &ge; 3).
                 </p>
               </div>
-              <div style="display:flex; gap:10px;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn btn-primary" id="btn-run-opt">Run Co-Design Optimization</button>
+                <button class="btn" id="btn-run-noise">NISQ Noise</button>
+                <button class="btn" id="btn-run-mitigate">ZNE Mitigate</button>
+                <button class="btn" id="btn-run-surgery">Lattice Surgery</button>
+                <button class="btn" id="btn-run-draw">Draw Bell</button>
               </div>
             </div>
 
             <div class="pareto-canvas-wrapper">
               <canvas id="pareto-canvas"></canvas>
             </div>
+            <pre id="circuit-ascii" style="display:none; margin-top:12px; padding:12px; background:#04060a; border:1px solid var(--border); border-radius:8px; color:#9ae6b4; font-size:11px; overflow:auto; max-height:220px;"></pre>
 
             <!-- Quantum Metrics Dashboard Grid -->
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;">

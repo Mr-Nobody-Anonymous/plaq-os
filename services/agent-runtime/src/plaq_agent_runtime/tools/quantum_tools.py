@@ -142,6 +142,59 @@ class QuantumHardwareParams(PlaqBaseModel):
     """Parameters for quantum.hardware (none required)."""
 
 
+class QuantumNoiseParams(PlaqBaseModel):
+    """Parameters for quantum.noise (phenomenological NISQ noise)."""
+
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    shots: int = Field(default=1024)
+    seed: int = Field(default=42)
+    p1: float = Field(default=0.001)
+    p2: float = Field(default=0.01)
+    p_readout: float = Field(default=0.02)
+
+
+class QuantumMitigateParams(PlaqBaseModel):
+    """Parameters for quantum.mitigate (ZNE + readout inversion)."""
+
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    p1: float = Field(default=0.001)
+    p2: float = Field(default=0.01)
+    p_readout: float = Field(default=0.02)
+    observable: str = Field(default="success")
+
+
+class QuantumTranspileParams(PlaqBaseModel):
+    """Parameters for quantum.transpile (SWAP routing)."""
+
+    workload: Optional[str] = Field(default="qft")
+    qubits: Optional[int] = Field(default=4)
+    qasm: Optional[str] = None
+    topology: str = Field(default="linear", description="linear | grid | heavy_hex | all")
+
+
+class QuantumSurgeryParams(PlaqBaseModel):
+    """Parameters for quantum.surgery (lattice-surgery resource plan)."""
+
+    workload: Optional[str] = Field(default="qft")
+    qubits: Optional[int] = Field(default=4)
+    qasm: Optional[str] = None
+    code_distance: Optional[int] = Field(default=3)
+    hardware_profile: str = Field(default="superconducting")
+
+
+class QuantumDrawParams(PlaqBaseModel):
+    """Parameters for quantum.draw (ASCII / Mermaid)."""
+
+    workload: Optional[str] = Field(default="bell")
+    qubits: Optional[int] = None
+    qasm: Optional[str] = None
+    bitstring: Optional[str] = None
+
+
 def quantum_compile(params: QuantumCompileParams, context: Any) -> ToolResult:
     """Synthesize circuit, decompose single-qubit rotations, and extract fault-tolerant metrics."""
     t0 = time.perf_counter()
@@ -413,5 +466,93 @@ def quantum_hardware(params: QuantumHardwareParams, context: Any) -> ToolResult:
     t0 = time.perf_counter()
     try:
         return _ok(t0, {"profiles": list_hardware_profiles()})
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_noise(params: QuantumNoiseParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.noise import run_noisy_simulation
+
+        res = run_noisy_simulation(
+            workload=params.workload,
+            qubits=params.qubits,
+            qasm=params.qasm,
+            shots=params.shots,
+            seed=params.seed,
+            p1=params.p1,
+            p2=params.p2,
+            p_readout=params.p_readout,
+        )
+        return _ok(t0, res.to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_mitigate(params: QuantumMitigateParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.mitigation import run_mitigation
+
+        res = run_mitigation(
+            workload=params.workload,
+            qubits=params.qubits,
+            qasm=params.qasm,
+            p1=params.p1,
+            p2=params.p2,
+            p_readout=params.p_readout,
+            observable=params.observable,
+        )
+        return _ok(t0, res.to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_transpile(params: QuantumTranspileParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.transpiler import route_circuit
+
+        res = route_circuit(
+            workload=params.workload,
+            qubits=params.qubits,
+            qasm=params.qasm,
+            topology=params.topology,
+        )
+        return _ok(t0, res.to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_surgery(params: QuantumSurgeryParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.surgery import plan_lattice_surgery
+
+        res = plan_lattice_surgery(
+            workload=params.workload,
+            qubits=params.qubits,
+            qasm=params.qasm,
+            code_distance=params.code_distance,
+            hardware_profile=params.hardware_profile,
+        )
+        return _ok(t0, res.to_dict())
+    except Exception as exc:
+        return _err(t0, exc)
+
+
+def quantum_draw(params: QuantumDrawParams, context: Any) -> ToolResult:
+    t0 = time.perf_counter()
+    try:
+        from plaq_quantum.visualize import draw_circuit
+
+        res = draw_circuit(
+            workload=params.workload,
+            qubits=params.qubits,
+            qasm=params.qasm,
+            bitstring=params.bitstring,
+        )
+        return _ok(t0, res.to_dict())
     except Exception as exc:
         return _err(t0, exc)

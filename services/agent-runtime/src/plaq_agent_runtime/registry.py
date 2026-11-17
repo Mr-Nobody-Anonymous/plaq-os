@@ -44,23 +44,33 @@ from plaq_agent_runtime.tools.terminal_tools import (
 from plaq_agent_runtime.tools.quantum_tools import (
     QuantumBaselinesParams,
     QuantumCompileParams,
+    QuantumDrawParams,
     QuantumEstimateParams,
     QuantumHardwareParams,
+    QuantumMitigateParams,
+    QuantumNoiseParams,
     QuantumOptimizeParams,
     QuantumQasmParams,
     QuantumRunParams,
     QuantumSimulateParams,
+    QuantumSurgeryParams,
     QuantumThresholdParams,
+    QuantumTranspileParams,
     QuantumWorkloadsParams,
     quantum_baselines,
     quantum_compile,
+    quantum_draw,
     quantum_estimate,
     quantum_hardware,
+    quantum_mitigate,
+    quantum_noise,
     quantum_optimize,
     quantum_qasm,
     quantum_run,
     quantum_simulate,
+    quantum_surgery,
     quantum_threshold,
+    quantum_transpile,
     quantum_workloads,
 )
 from plaq_agent_runtime.tools.artifact_tools import (
@@ -482,6 +492,61 @@ def create_default_tool_registry() -> ToolRegistry:
         ),
         quantum_hardware,
         QuantumHardwareParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.noise",
+            description="Phenomenological NISQ noise (depolarizing + readout) vs ideal statevector.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumNoiseParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_noise,
+        QuantumNoiseParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.mitigate",
+            description="Readout inversion + zero-noise extrapolation (ZNE) on a circuit observable.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumMitigateParams.model_json_schema(),
+            timeout_sec=60.0,
+        ),
+        quantum_mitigate,
+        QuantumMitigateParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.transpile",
+            description="Topology-aware SWAP routing (linear, grid, IBM-like heavy-hex).",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumTranspileParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_transpile,
+        QuantumTranspileParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.surgery",
+            description="Lattice-surgery resource plan: patches, 15-to-1 T factories, code cycles.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumSurgeryParams.model_json_schema(),
+            timeout_sec=30.0,
+        ),
+        quantum_surgery,
+        QuantumSurgeryParams,
+    )
+    registry.register(
+        ToolDefinition(
+            name="quantum.draw",
+            description="ASCII and Mermaid diagrams of a named workload or OpenQASM circuit.",
+            tier=PermissionTier.QUANTUM_ENGINE,
+            parameters_schema=QuantumDrawParams.model_json_schema(),
+            timeout_sec=15.0,
+        ),
+        quantum_draw,
+        QuantumDrawParams,
     )
 
     # 6. Privileged Tier

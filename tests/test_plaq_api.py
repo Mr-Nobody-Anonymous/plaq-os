@@ -186,6 +186,15 @@ class TestAPIQuantum:
         hw = client.get("/api/v1/quantum/hardware")
         assert hw.status_code == 200
         assert hw.json()["profiles"]
+        noise = client.post("/api/v1/quantum/noise", json={"workload": "bell", "shots": 64})
+        assert noise.status_code == 200
+        assert noise.json()["num_qubits"] == 2
+        draw = client.post("/api/v1/quantum/draw", json={"workload": "bell"})
+        assert draw.status_code == 200
+        assert "ascii" in draw.json()
+        surg = client.post("/api/v1/quantum/surgery", json={"workload": "qft", "qubits": 3})
+        assert surg.status_code == 200
+        assert surg.json()["physical_qubits_total"] > 0
 
     def test_task_run_enqueues_job(self, client, test_repo):
         created = client.post("/api/v1/tasks", json={"goal": "Analyze data and generate docs"})
