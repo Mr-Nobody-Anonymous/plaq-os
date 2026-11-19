@@ -102,6 +102,7 @@ class ToolContext:
     sandbox_manager: Optional[Any] = None
     artifact_service: Optional[Any] = None
     control_plane: Optional[Any] = None
+    cancel_event: Optional[Any] = None
     allowed_tiers: Optional[Set[Union[PermissionTier, str]]] = None
     extra: Dict[str, Any] = field(default_factory=dict)
 

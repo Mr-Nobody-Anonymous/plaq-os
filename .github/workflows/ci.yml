@@ -13,10 +13,10 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -56,8 +56,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
       with:
         python-version: "3.11"
     - name: Cross-platform install
@@ -66,3 +66,19 @@ jobs:
       run: python plaq.py doctor --json
     - name: Smoke
       run: python plaq.py quantum run bell --json
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Build and start container
+      run: docker compose up --build --detach --wait
+    - name: Verify health and authentication
+      run: |
+        curl --fail http://127.0.0.1:8000/api/v1/healthz
+        test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/v1/tasks)" = "401"
+        key=$(docker compose exec -T plaq cat /data/api_key)
+        test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $key" http://127.0.0.1:8000/api/v1/tasks)" = "200"
+    - name: Stop container
+      if: always()
+      run: docker compose down --volumes

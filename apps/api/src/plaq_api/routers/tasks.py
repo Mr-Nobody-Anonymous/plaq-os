@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+import os
+from pathlib import Path
+
+from plaq_sandbox.guard import PathGuard
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
@@ -38,9 +42,13 @@ def create_task(
             detail="Goal cannot be empty",
         )
     try:
+        root = Path(os.environ.get("PLAQ_WORKSPACE", ".")).expanduser().resolve()
+        workspace = PathGuard.resolve_safe_path(root, payload.workspace_path or "")
+        if not workspace.is_dir():
+            raise ValueError("Workspace directory does not exist")
         task_dict = repo.create_task(
             goal=goal_str,
-            workspace_path=payload.workspace_path or "",
+            workspace_path=str(workspace),
             parameters=payload.parameters,
         )
         return task_dict
@@ -151,7 +159,10 @@ def run_task(
         from plaq_agent_runtime.queue import get_queue
 
         queue = get_queue(repo, runtime)
-        job = queue.enqueue(task_id, action="execute")
+        try:
+            job = queue.enqueue(task_id, action="execute")
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job": job, "mode": "background"}
     try:
         result = runtime.execute_task(task_id)

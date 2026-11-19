@@ -157,7 +157,15 @@ class BackgroundTaskQueue:
                     error=result.error,
                 )
             except Exception as exc:
-                self.repo.update_job(job["id"], status="failed", error=str(exc))
+                task = self.repo.get_task(job["task_id"])
+                if task and task["status"] in {"planning", "running", "verifying", "blocked"}:
+                    try:
+                        self.repo.transition_task(job["task_id"], "failed", error=str(exc))
+                    except ValueError:
+                        pass  # Another worker or cancellation changed the task.
+                task = self.repo.get_task(job["task_id"])
+                state = "cancelled" if task and task["status"] == "cancelled" else "failed"
+                self.repo.update_job(job["id"], status=state, error=str(exc))
 
 
 _queues: Dict[int, BackgroundTaskQueue] = {}

@@ -197,3 +197,80 @@ def test_atomic_plan_rollback(repo):
     with pytest.raises(ValueError):
         repo.record_plan(task["id"], steps)
     assert repo.list_steps(task["id"]) == []
+
+
+def test_unknown_workloads_rejected(repo):
+    with TestClient(create_app(repository=repo)) as client:
+        assert client.post("/api/v1/quantum/compile", json={"circuit_name": "bogus"}).status_code == 400
+        assert client.post("/api/v1/quantum/optimize", json={"circuit_name": "bogus"}).status_code == 400
+
+
+def test_api_workspace_and_host_command_policy(monkeypatch, tmp_path, repo):
+    monkeypatch.setenv("PLAQ_WORKSPACE", str(tmp_path))
+    monkeypatch.delenv("PLAQ_ALLOW_HOST_COMMANDS", raising=False)
+    (tmp_path / "tests").mkdir()
+    with TestClient(create_app(repository=repo)) as client:
+        assert client.post("/api/v1/tasks", json={"goal": "run pytest", "workspace_path": "../"}).status_code == 422
+        task = client.post("/api/v1/tasks", json={"goal": "run pytest", "workspace_path": "."}).json()
+        result = client.post(f"/api/v1/tasks/{task['id']}/run?background=false").json()
+        assert result["status"] == "failed"
+        assert "Permission denied" in result["error"]
+
+
+def test_process_cancel_stops_running_tool(tmp_path, repo):
+    import sys
+    import threading
+    import time
+    from plaq_contracts.step import PlanDefinition, PlanStep
+
+    marker = tmp_path / "started"
+    task = repo.create_task("cancel process", workspace_path=str(tmp_path))
+    runtime = AgentRuntime(repo)
+    command = [sys.executable, "-c", f"from pathlib import Path; import time; Path({str(marker)!r}).touch(); time.sleep(30)"]
+    step = PlanStep(task_id=task["id"], step_number=1, step_name="wait", criteria="Exit code 0",
+                    tool_name="terminal.run", tool_parameters={"cmd": command, "timeout_sec": 40})
+    runtime.model_gateway.generate_plan = lambda *a, **kw: PlanDefinition(task_id=task["id"], goal=task["goal"], steps=[step])
+    results = []
+    thread = threading.Thread(target=lambda: results.append(runtime.execute_task(task["id"])))
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert marker.exists(), "child process did not start"
+    assert runtime.cancel_task(task["id"])
+    thread.join(timeout=5)
+    assert not thread.is_alive(), "cancel did not terminate the child"
+    assert results[0].status == "cancelled"
+
+
+def test_unsupported_goal_and_unverified_criteria_fail_safely(tmp_path, repo):
+    task = repo.create_task("Build me a website", workspace_path=str(tmp_path))
+    result = AgentRuntime(repo).execute_task(task["id"])
+    assert result.status == "failed"
+    assert "No deterministic plan" in result.error
+    result = ToolResult(success=True, output='{"depth": 3}', exit_code=0)
+    assert not DeterministicPlanner().verify_criteria("depth > 0 and system is secure", result)[0]
+    assert not DeterministicPlanner().verify_criteria("The task is complete", result)[0]
+
+
+def test_active_jobs_are_idempotent(repo):
+    task = repo.create_task("queue me")
+    one = repo.create_job(task["id"])
+    two = repo.create_job(task["id"])
+    assert one["id"] == two["id"]
+    with pytest.raises(ValueError, match="different action"):
+        repo.create_job(task["id"], "resume")
+    repo.update_job(one["id"], status="failed")
+    assert repo.create_job(task["id"])["id"] != one["id"]
+
+
+def test_cli_enqueue_without_wait_does_not_spawn_worker(monkeypatch, tmp_path, capsys):
+    from plaq_cli.main import main
+    db_path = str(tmp_path / "cli.db")
+    monkeypatch.setenv("PLAQ_DB_PATH", db_path)
+    repo = ControlPlaneRepository(DatabaseEngine(db_path))
+    task = repo.create_task("Simulate Bell")
+    assert main(["task", "run", task["id"], "--json"]) == 0
+    job = json.loads(capsys.readouterr().out)["job"]
+    assert repo.get_job(job["id"])["status"] == "queued"
+    repo.close()

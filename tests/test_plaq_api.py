@@ -53,7 +53,7 @@ class TestAPITasks:
     """Verifies task creation, listing, retrieval, and status transitions."""
 
     def test_create_task_success(self, client):
-        resp = client.post("/api/v1/tasks", json={"goal": "Optimize QAOA Circuit", "workspace_path": "/tmp/test"})
+        resp = client.post("/api/v1/tasks", json={"goal": "Optimize QAOA Circuit", "workspace_path": "."})
         assert resp.status_code == 201
         data = resp.json()
         assert data["goal"] == "Optimize QAOA Circuit"

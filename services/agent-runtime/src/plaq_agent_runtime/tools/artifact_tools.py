@@ -33,7 +33,7 @@ def artifacts_publish(params: ArtifactPublishParams, context: Any) -> ToolResult
     artifact_svc: Optional[ArtifactService] = getattr(context, "artifact_service", None)
     if artifact_svc is None:
         # Default storage directory under workspace or system temp
-        storage_dir = Path(os.environ.get("PLAQ_ARTIFACT_DIR", workspace_root / ".artifacts"))
+        storage_dir = Path(os.environ.get("PLAQ_ARTIFACT_DIR", workspace_root / ".artifacts")).expanduser()
         conn = getattr(getattr(context, "control_plane", None), "db", None)
         artifact_svc = ArtifactService(storage_dir=storage_dir, conn=conn)
 

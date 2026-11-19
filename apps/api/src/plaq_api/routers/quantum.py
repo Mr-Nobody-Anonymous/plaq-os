@@ -33,7 +33,7 @@ class QuantumEstimatePayload(BaseModel):
 
 class QuantumCompilePayload(BaseModel):
     circuit_name: Optional[str] = Field(default="bernstein_vazirani", description="Circuit identifier or workload")
-    num_qubits: Optional[int] = Field(default=4, description="Number of qubits")
+    num_qubits: Optional[int] = Field(default=4, ge=1, le=64, description="Number of qubits")
 
 
 class QuantumOptimizePayload(BaseModel):
@@ -73,7 +73,7 @@ def estimate_quantum(payload: QuantumEstimatePayload) -> Dict[str, Any]:
         single_qubit_ops=max(0, qubits * depth - t_count),
         two_qubit_ops=qubits,
         t_ops=t_count,
-        t_depth=max(1, t_count // 2),
+        t_depth=max(1, t_count // 2) if t_count else 0,
         measurement_ops=qubits,
         operation_counts={"t": t_count},
         synthesis_t_count=0,
@@ -119,7 +119,7 @@ def compile_quantum(payload: QuantumCompilePayload) -> Dict[str, Any]:
         elif circuit_name == "qaoa":
             circuit = pq_circuits.make_qaoa_circuit(n_qubits=qubits)
         else:
-            circuit = pq_circuits.make_test_circuit(n_qubits=qubits)
+            circuit = pq_workloads.resolve_circuit(workload=circuit_name, qubits=qubits, strict=True)
 
         metrics = pq_cost_model.extract_circuit_metrics(circuit)
         return {
@@ -139,7 +139,7 @@ def compile_quantum(payload: QuantumCompilePayload) -> Dict[str, Any]:
 def optimize_quantum(payload: QuantumOptimizePayload) -> Dict[str, Any]:
     """Execute multi-objective Pareto frontier co-design search."""
     try:
-        circuit = pq_workloads.resolve_circuit(workload=payload.circuit_name or "bernstein_vazirani")
+        circuit = pq_workloads.resolve_circuit(workload=payload.circuit_name or "bernstein_vazirani", strict=True)
         hw = pq_hardware.get_hardware_profile(payload.hardware_profile or "demo-illustrative", strict=True)
         _, pareto_frontier = pq_optimizer.search_pareto_optimizer(
             circuit=circuit,

@@ -145,10 +145,12 @@ class ControlPlaneRepository:
                     updated_at = ?,
                     completed_at = COALESCE(?, completed_at),
                     error = COALESCE(?, error)
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
-                (to_status, now, completed_at, error, task_id),
+                (to_status, now, completed_at, error, task_id, current_status),
             )
+            if conn.execute("SELECT changes()").fetchone()[0] != 1:
+                raise ValueError("Task status changed concurrently; retry the operation")
         return self.get_task(task_id)  # type: ignore
 
     # -----------------------------------------------------------------------
@@ -489,17 +491,22 @@ class ControlPlaneRepository:
     # -----------------------------------------------------------------------
 
     def create_job(self, task_id: str, action: str = "execute") -> Dict[str, Any]:
-        """Enqueue a background job for a task."""
-        if self.get_task(task_id) is None:
-            raise KeyError(f"Task '{task_id}' not found.")
+        """Enqueue once per task while a job is queued or running."""
         job_id = str(uuid.uuid4())
         now = _utc_now_iso()
         with self.db.transaction() as conn:
+            if conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone() is None:
+                raise KeyError(f"Task '{task_id}' not found.")
+            active = conn.execute(
+                "SELECT * FROM jobs WHERE task_id = ? AND status IN ('queued', 'running') ORDER BY created_at LIMIT 1",
+                (task_id,),
+            ).fetchone()
+            if active:
+                if active["action"] != action:
+                    raise ValueError("Task already has an active job with a different action")
+                return dict(active)
             conn.execute(
-                """
-                INSERT INTO jobs (id, task_id, action, status, created_at)
-                VALUES (?, ?, ?, 'queued', ?)
-                """,
+                "INSERT INTO jobs (id, task_id, action, status, created_at) VALUES (?, ?, ?, 'queued', ?)",
                 (job_id, task_id, action, now),
             )
         return self.get_job(job_id)  # type: ignore

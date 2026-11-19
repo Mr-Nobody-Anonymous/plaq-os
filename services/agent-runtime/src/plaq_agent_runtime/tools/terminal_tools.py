@@ -55,6 +55,7 @@ def terminal_run(params: TerminalRunParams, context: Any) -> ToolResult:
         timeout_sec=params.timeout_sec,
         env=params.env,
         raise_on_timeout=False,
+        cancel_event=getattr(context, "cancel_event", None),
     )
 
     if res.timed_out:
@@ -101,6 +102,7 @@ def tests_run(params: TestsRunParams, context: Any) -> ToolResult:
         cwd=effective_cwd,
         timeout_sec=params.timeout_sec,
         raise_on_timeout=False,
+        cancel_event=getattr(context, "cancel_event", None),
     )
 
     if res.timed_out:

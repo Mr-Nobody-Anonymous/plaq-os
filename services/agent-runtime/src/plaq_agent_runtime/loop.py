@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import time
+import threading
 from typing import Any, Callable, Dict, List, Optional
 
 from plaq_agent_runtime.approvals import ApprovalManager
@@ -44,6 +45,8 @@ class AgentRuntime:
         event_broadcaster: Optional[Callable[[PlatformEvent], None]] = None,
         sandbox_manager: Optional[Any] = None,
         artifact_service: Optional[Any] = None,
+        allowed_tiers: Optional[set] = None,
+        allowed_workspace_root: Optional[Path] = None,
     ):
         self.repo = repository
         self.model_gateway = model_gateway or ModelGateway()
@@ -55,8 +58,28 @@ class AgentRuntime:
         )
         self.sandbox_manager = sandbox_manager
         self.artifact_service = artifact_service
+        self.allowed_tiers = allowed_tiers
+        self.allowed_workspace_root = Path(allowed_workspace_root).resolve() if allowed_workspace_root else None
         self.recovery_manager = CheckpointRecoveryManager(self.repo)
         self._cancelled_tasks: set[str] = set()
+        self._cancel_events: Dict[str, threading.Event] = {}
+        self._cancel_lock = threading.Lock()
+
+    def _validate_workspace(self, workspace_path: str) -> Path:
+        if self.allowed_workspace_root is None:
+            return Path(workspace_path or ".").resolve()
+        from plaq_sandbox.guard import PathGuard, PathTraversalError
+        # Stored workspaces are absolute; PathGuard rejects Windows drive paths
+        # from external input, so check persisted absolute paths via containment.
+        path = Path(workspace_path).expanduser()
+        if path.is_absolute():
+            resolved = path.resolve()
+            try:
+                resolved.relative_to(self.allowed_workspace_root)
+            except ValueError as exc:
+                raise PathTraversalError("Task workspace escapes the configured root") from exc
+            return resolved
+        return PathGuard.resolve_safe_path(self.allowed_workspace_root, workspace_path or "")
 
     def emit_event(
         self,
@@ -86,8 +109,10 @@ class AgentRuntime:
         if TaskStateMachine.is_terminal(current_status):
             return False
 
-        self._cancelled_tasks.add(task_id)
         self.repo.transition_task(task_id, "cancelled")
+        with self._cancel_lock:
+            self._cancelled_tasks.add(task_id)
+            self._cancel_events.setdefault(task_id, threading.Event()).set()
         self.emit_event(
             EventType.TASK_CANCELLED,
             task_id=task_id,
@@ -128,7 +153,7 @@ class AgentRuntime:
             payload={"status": "planning"},
         )
 
-        workspace_path = task.get("workspace_path", "")
+        workspace_path = str(self._validate_workspace(task.get("workspace_path", "")))
         ws_files: List[str] = []
         if workspace_path and Path(workspace_path).exists():
             try:
@@ -150,14 +175,20 @@ class AgentRuntime:
             "parameters": task_params,
         }
 
-        # Stage 3: Plan & Define Criteria
-        plan = self.model_gateway.generate_plan(
-            goal=task["goal"],
-            context=context,
-            task_id=task_id,
-        )
-
-        db_steps = self.repo.record_plan(task_id, plan.steps)
+        # Stage 3: Plan & Define Criteria. Planning failures are task failures,
+        # not successful placeholder actions or permanently stuck planning tasks.
+        try:
+            plan = self.model_gateway.generate_plan(goal=task["goal"], context=context, task_id=task_id)
+            db_steps = self.repo.record_plan(task_id, plan.steps)
+        except Exception as exc:
+            error = f"Planning failed: {exc}"
+            current = self.repo.get_task(task_id)
+            if current and current["status"] == "cancelled":
+                return TaskResult(task_id=task_id, status="cancelled")
+            self.repo.transition_task(task_id, "failed", error=error)
+            self.emit_event(EventType.TASK_FAILED, task_id=task_id, payload={"error": error})
+            return TaskResult(task_id=task_id, status="failed", error=error,
+                              duration_ms=(time.time() - start_time) * 1000)
 
         # Execute planned steps sequentially
         return self._run_step_pipeline(task_id, db_steps, context, start_time)
@@ -257,6 +288,8 @@ class AgentRuntime:
                         task_id=task_id,
                         step_id=step_id,
                     )
+                    with self._cancel_lock:
+                        cancel_event = self._cancel_events.setdefault(task_id, threading.Event())
                     t_ctx = ToolContext(
                         workspace_path=Path(context.get("workspace_path") or ".").resolve(),
                         task_id=task_id,
@@ -264,6 +297,8 @@ class AgentRuntime:
                         control_plane=self.repo,
                         sandbox_manager=self.sandbox_manager,
                         artifact_service=self.artifact_service,
+                        cancel_event=cancel_event,
+                        allowed_tiers=self.allowed_tiers,
                     )
                     tool_res = self.tool_registry.execute(tool_req, t_ctx)
                 except Exception as exc:
@@ -444,7 +479,7 @@ class AgentRuntime:
                 )
 
         steps = self.repo.list_steps(task_id)
-        workspace_path = task.get("workspace_path", "")
+        workspace_path = str(self._validate_workspace(task.get("workspace_path", "")))
         task_params = task.get("parameters") or {}
         if isinstance(task_params, str):
             try:
