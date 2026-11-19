@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from plaq_contracts.step import PlanStep, StepStatus
@@ -83,7 +84,7 @@ class DeterministicPlanner(BaseModelProvider):
                     step_name="Publish Resource Manifest",
                     criteria="SHA-256 artifact saved",
                     tool_name="artifacts.publish",
-                    tool_parameters={"file": "bv_resource_report.json"},
+                    tool_parameters={"name": "bv_resource_report.json", "previous_output": True},
                 ),
             ]
 
@@ -120,7 +121,7 @@ class DeterministicPlanner(BaseModelProvider):
                     step_name="Publish Resource Manifest",
                     criteria="SHA-256 artifact saved",
                     tool_name="artifacts.publish",
-                    tool_parameters={"file": "pareto_report.json"},
+                    tool_parameters={"name": "pareto_report.json", "previous_output": True},
                 ),
             ]
 
@@ -489,6 +490,34 @@ class DeterministicPlanner(BaseModelProvider):
         c_lower = criteria.lower()
         out = (tool_result.output or "").lower()
 
+        # Numeric acceptance criteria require actual evidence, not just exit code 0.
+        aliases = {"physical qubits": ("physical_qubits",), "code distance": ("code_distance",),
+                   "t-count": ("t_count", "t_ops"), "depth": ("depth", "circuit_depth"),
+                   "shots": ("total_shots", "shots")}
+        try:
+            data = json.loads(tool_result.output or "")
+            if not isinstance(data, dict):
+                data = {}
+        except (ValueError, TypeError):
+            data = {}
+        numeric = re.compile(r"(physical qubits|code distance|t-count|depth|shots)\s*(<=|>=|==|<|>)\s*(\d+(?:\.\d+)?)")
+        for match in numeric.finditer(c_lower):
+            label, op, threshold = match.groups()
+            value = next((data[k] for k in aliases[label] if k in data), None)
+            if value is None:
+                pattern = r"(?:" + "|".join(re.escape(k).replace("_", "[_ ]") for k in aliases[label]) + r")\s*[=:]\s*(\d+(?:\.\d+)?)"
+                found = re.search(pattern, out)
+                value = float(found.group(1)) if found else None
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return False, f"Missing evidence for {match.group(0)}"
+            limit = float(threshold)
+            passed = {"<=": value <= limit, ">=": value >= limit, "==": value == limit,
+                      "<": value < limit, ">": value > limit}[op]
+            if not passed:
+                return False, f"Criterion {match.group(0)} failed (actual {value})"
+
         # Circuit depth / qubits criteria
         if "4 qubits" in c_lower or "depth" in c_lower:
             if "qubit" in out or "size=" in out or tool_result.success:
@@ -762,8 +791,8 @@ class LLMProvider(BaseModelProvider):
         context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         det_ok, det_reason = self._fallback.verify_criteria(criteria, tool_result, context)
-        # Never let the LLM override a hard tool failure.
-        if not tool_result.success or (tool_result.exit_code not in (None, 0)):
+        # Never let the LLM override a hard tool failure or failed numerical check.
+        if not tool_result.success or (tool_result.exit_code not in (None, 0)) or (not det_ok and ("Criterion " in det_reason or "Missing evidence" in det_reason)):
             return det_ok, det_reason
         flag = os.environ.get("PLAQ_LLM_VERIFY", "1").strip().lower()
         if not self.api_key or flag in {"0", "false", "off"}:

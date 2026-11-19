@@ -21,14 +21,14 @@ router = APIRouter(prefix="/api/v1/quantum", tags=["Quantum"])
 
 
 class QuantumEstimatePayload(BaseModel):
-    qubits: Optional[int] = Field(default=None, description="Number of logical qubits")
-    num_qubits: Optional[int] = Field(default=None, description="Alternative alias for qubits")
-    circuit_depth: Optional[int] = Field(default=50, description="Circuit depth")
-    physical_error_rate: Optional[float] = Field(default=0.001, description="Physical error rate")
-    physical_error: Optional[float] = Field(default=None, description="Alternative alias")
-    error_budget: Optional[float] = Field(default=1e-3, description="Allocated target epsilon error budget")
+    qubits: Optional[int] = Field(default=None, ge=1, le=10000, description="Number of logical qubits")
+    num_qubits: Optional[int] = Field(default=None, ge=1, le=10000, description="Alternative alias for qubits")
+    circuit_depth: Optional[int] = Field(default=50, ge=1, description="Circuit depth")
+    physical_error_rate: Optional[float] = Field(default=0.001, ge=0, lt=1, description="Physical error rate")
+    physical_error: Optional[float] = Field(default=None, ge=0, lt=1, description="Alternative alias")
+    error_budget: Optional[float] = Field(default=1e-3, gt=0, lt=1, description="Allocated target epsilon error budget")
     hardware_profile: Optional[str] = Field(default="demo-illustrative", description="Hardware profile name")
-    t_count: Optional[int] = Field(default=None, description="Number of T gates")
+    t_count: Optional[int] = Field(default=None, ge=0, description="Number of T gates")
 
 
 class QuantumCompilePayload(BaseModel):
@@ -39,7 +39,7 @@ class QuantumCompilePayload(BaseModel):
 class QuantumOptimizePayload(BaseModel):
     circuit_name: Optional[str] = Field(default="bernstein_vazirani", description="Circuit name")
     hardware_profile: Optional[str] = Field(default="demo-illustrative", description="Hardware profile")
-    max_evaluations: Optional[int] = Field(default=15, description="Search iterations")
+    max_evaluations: Optional[int] = Field(default=15, ge=1, le=1000, description="Search iterations")
 
 
 @router.post("/estimate")
@@ -47,14 +47,16 @@ def estimate_quantum(payload: QuantumEstimatePayload) -> Dict[str, Any]:
     """Calculate analytical fault-tolerant cost estimation and minimum code distance."""
     qubits = payload.qubits or payload.num_qubits or 4
     depth = payload.circuit_depth or 50
-    p_err = payload.physical_error or payload.physical_error_rate or 0.001
+    p_err = payload.physical_error if payload.physical_error is not None else payload.physical_error_rate
+    if p_err is None:
+        p_err = 0.001
     budget = payload.error_budget or 1e-3
     t_count = payload.t_count if payload.t_count is not None else (qubits * 10)
 
     try:
-        hw = pq_hardware.get_hardware_profile(payload.hardware_profile or "demo-illustrative")
-    except Exception:
-        hw = pq_hardware.get_hardware_profile("demo-illustrative")
+        hw = pq_hardware.get_hardware_profile(payload.hardware_profile or "demo-illustrative", strict=True)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     stv = qubits * depth
     dist_res = pq_cost_model.solve_minimum_code_distance(
@@ -82,6 +84,7 @@ def estimate_quantum(payload: QuantumEstimatePayload) -> Dict[str, Any]:
         hardware=hw,
         target_epsilon=budget,
         code_distance_override=getattr(payload, "code_distance", None),
+        physical_error_override=p_err,
     )
 
     d = cost_res.code_distance
@@ -91,7 +94,7 @@ def estimate_quantum(payload: QuantumEstimatePayload) -> Dict[str, Any]:
         "code_distance": d,
         "t_count": t_count,
         "physical_qubits": cost_res.physical_qubits,
-        "estimated_runtime_sec": round(cost_res.runtime_seconds, 6) if cost_res.runtime_seconds > 0 else 1.25,
+        "estimated_runtime_sec": round(cost_res.runtime_seconds, 6),
         "runtime_seconds": cost_res.runtime_seconds,
         "failure_probability": cost_res.failure_probability,
         "feasible": cost_res.valid,
@@ -135,10 +138,9 @@ def compile_quantum(payload: QuantumCompilePayload) -> Dict[str, Any]:
 @router.post("/optimize")
 def optimize_quantum(payload: QuantumOptimizePayload) -> Dict[str, Any]:
     """Execute multi-objective Pareto frontier co-design search."""
-    circuit = pq_circuits.make_bernstein_vazirani_circuit(bitstring="1111")
-    hw = pq_hardware.get_hardware_profile(payload.hardware_profile or "demo-illustrative")
-
     try:
+        circuit = pq_workloads.resolve_circuit(workload=payload.circuit_name or "bernstein_vazirani")
+        hw = pq_hardware.get_hardware_profile(payload.hardware_profile or "demo-illustrative", strict=True)
         _, pareto_frontier = pq_optimizer.search_pareto_optimizer(
             circuit=circuit,
             hardware=hw,
@@ -154,8 +156,10 @@ def optimize_quantum(payload: QuantumOptimizePayload) -> Dict[str, Any]:
                 for p in pareto_frontier
             ],
         }
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
 
 @router.post("/baselines")

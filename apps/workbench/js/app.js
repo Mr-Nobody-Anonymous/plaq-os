@@ -11,6 +11,17 @@ class PlaqWorkbenchApp {
 
   async init() {
     console.log("[Plaq-Workbench] Initializing Workbench Engine v0.3.0...");
+    // A visitor must prove knowledge of the key; the server never grants it on GET /.
+    const probe = await fetch(`${this.apiBase}/api/v1/tasks`);
+    if (probe.status === 401) {
+      const key = window.prompt("Enter the Plaq-OS API key (see ~/.plaq/api_key):");
+      if (!key) return;
+      const login = await fetch(`${this.apiBase}/api/v1/session`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({key})
+      });
+      if (!login.ok) { window.alert("Invalid API key"); return; }
+    }
     this.setupNavigation();
     this.setupEventListeners();
     await this.refreshHealth();

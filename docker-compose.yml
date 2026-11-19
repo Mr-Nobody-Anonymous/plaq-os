@@ -2,13 +2,11 @@ services:
   plaq:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       PLAQ_DB_PATH: /data/plaq.db
+      PLAQ_ARTIFACT_DIR: /data/artifacts
       PLAQ_HOST: 0.0.0.0
-      PLAQ_CORS_ORIGINS: "*"
-      # Local compose: open API. Set PLAQ_API_KEY to lock it down.
-      PLAQ_AUTH: "off"
     volumes:
       - plaq-data:/data
     restart: unless-stopped

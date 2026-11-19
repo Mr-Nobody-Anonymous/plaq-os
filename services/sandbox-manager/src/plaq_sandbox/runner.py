@@ -1,4 +1,4 @@
-"""Subprocess execution runner with timeout support and Windows process-tree termination."""
+"""Subprocess supervision with timeouts. This is not an OS security sandbox."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def kill_process_tree(pid: int) -> None:
 
 
 class ProcessRunner:
-    """Sandboxed subprocess runner with timeout enforcement and process-tree termination."""
+    """Run host subprocesses with timeouts and process-tree termination (no isolation)."""
 
     WINDOWS_ESSENTIAL_ENV = {
         "SystemRoot",

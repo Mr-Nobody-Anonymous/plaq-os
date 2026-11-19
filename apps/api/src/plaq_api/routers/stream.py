@@ -64,9 +64,13 @@ async def websocket_stream(
         api_key,
         authorization=websocket.headers.get("authorization", ""),
         cookie=websocket.cookies.get(SESSION_COOKIE, ""),
-        query_token=websocket.query_params.get("token", ""),
     ):
         await websocket.close(code=4401)
+        return
+    origin = websocket.headers.get("origin")
+    expected = f"{'https' if websocket.url.scheme == 'wss' else 'http'}://{websocket.headers.get('host')}"
+    if origin and origin != expected:
+        await websocket.close(code=4403)
         return
     await websocket.accept()
     broadcaster.register_ws(websocket)

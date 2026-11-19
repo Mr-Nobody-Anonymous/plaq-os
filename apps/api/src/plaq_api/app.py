@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,10 @@ from plaq_control_plane.repository import ControlPlaneRepository
 from plaq_agent_runtime.loop import AgentRuntime
 
 
+class LoginPayload(BaseModel):
+    key: str
+
+
 def _cors_origins() -> list[str]:
     """Return CORS allow-list from PLAQ_CORS_ORIGINS (comma-separated).
 
@@ -29,8 +34,6 @@ def _cors_origins() -> list[str]:
     """
     raw = os.environ.get("PLAQ_CORS_ORIGINS")
     if raw is None:
-        if os.environ.get("PLAQ_HOST") == "0.0.0.0" or Path("/.dockerenv").exists():
-            return ["*"]
         raw = "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8500,http://localhost:8500"
     raw = raw.strip()
     if raw == "*":
@@ -52,6 +55,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        import asyncio
+        from plaq_api.deps import get_broadcaster
+        get_broadcaster().bind_loop(asyncio.get_running_loop())
         if os.environ.get("PLAQ_QUEUE", "1").strip().lower() not in {"0", "false", "off"} and "pytest" not in sys.modules:
             from plaq_agent_runtime.queue import get_queue
 
@@ -90,6 +96,16 @@ def create_app(
     # keep the suite / local docker open. Health + docs stay public.
     api_key = resolve_api_key(generate=True)
 
+    @app.post("/api/v1/session", include_in_schema=False)
+    def login(payload: LoginPayload, request: Request):
+        if not api_key or not is_authorized(api_key, authorization="Bearer " + payload.key):
+            return JSONResponse(status_code=401, content={"detail": "Invalid API key"})
+        response = JSONResponse({"ok": True})
+        response.set_cookie(SESSION_COOKIE, api_key, httponly=True, samesite="strict",
+                            secure=request.url.scheme == "https", path="/")
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     if api_key:
 
         @app.middleware("http")
@@ -98,6 +114,7 @@ def create_app(
             public = {
                 "/api/v1/health",
                 "/api/v1/healthz",
+                "/api/v1/session",
                 "/docs",
                 "/redoc",
                 "/openapi.json",
@@ -107,12 +124,16 @@ def create_app(
                     api_key,
                     authorization=request.headers.get("authorization", ""),
                     cookie=request.cookies.get(SESSION_COOKIE, ""),
-                    query_token=request.query_params.get("token", ""),
                 ):
                     return JSONResponse(
                         status_code=401,
                         content={"detail": "Missing or invalid API key"},
                     )
+            # Cookie authentication must not authorize cross-origin state changes.
+            if request.method not in {"GET", "HEAD", "OPTIONS"} and request.cookies.get(SESSION_COOKIE):
+                origin = request.headers.get("origin")
+                if origin and origin != str(request.base_url).rstrip("/"):
+                    return JSONResponse(status_code=403, content={"detail": "Cross-origin request rejected"})
             return await call_next(request)
 
     # Register API routers
@@ -146,14 +167,6 @@ def create_app(
             index_file = workbench_dir / "index.html"
             if index_file.exists():
                 response = FileResponse(index_file)
-                if api_key:
-                    response.set_cookie(
-                        SESSION_COOKIE,
-                        api_key,
-                        httponly=True,
-                        samesite="lax",
-                        path="/",
-                    )
                 return response
             return {"message": "Plaq-OS API v0.3.0 is running. Workbench index.html not yet built."}
 

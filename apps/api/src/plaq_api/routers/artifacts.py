@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
+import secrets
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
@@ -56,5 +58,7 @@ def get_artifact_content(
             detail=f"Artifact payload file missing from storage: {file_path}",
         )
     content = file_path.read_bytes()
+    if not secrets.compare_digest(hashlib.sha256(content).hexdigest(), art["sha256_hash"]):
+        raise HTTPException(status_code=409, detail="Artifact integrity check failed")
     media_type = "application/json" if art["name"].endswith(".json") else "text/plain"
     return Response(content=content, media_type=media_type)

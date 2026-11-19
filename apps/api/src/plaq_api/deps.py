@@ -32,6 +32,8 @@ def set_repo(repo: ControlPlaneRepository) -> None:
     """Override repository (e.g. for testing with in-memory or fixture database)."""
     global _default_repo
     _default_repo = repo
+    global _default_runtime
+    _default_runtime = None
 
 
 def get_broadcaster() -> EventBroadcaster:
@@ -44,7 +46,7 @@ def get_runtime() -> AgentRuntime:
     global _default_runtime
     if _default_runtime is None:
         repo = get_repo()
-        _default_runtime = AgentRuntime(repository=repo)
+        _default_runtime = AgentRuntime(repository=repo, event_broadcaster=broadcaster.publish)
     return _default_runtime
 
 

@@ -157,18 +157,7 @@ class AgentRuntime:
             task_id=task_id,
         )
 
-        db_steps = []
-        for step in plan.steps:
-            db_step = self.repo.record_step(
-                task_id=task_id,
-                step_number=step.step_number,
-                step_name=step.step_name,
-                criteria=step.criteria,
-            )
-            # Annotate with planned tool metadata
-            db_step["tool_name"] = step.tool_name
-            db_step["tool_parameters"] = step.tool_parameters
-            db_steps.append(db_step)
+        db_steps = self.repo.record_plan(task_id, plan.steps)
 
         # Execute planned steps sequentially
         return self._run_step_pipeline(task_id, db_steps, context, start_time)
@@ -225,11 +214,15 @@ class AgentRuntime:
 
             # Human Approval Gate Check
             if tool_name:
-                req_approval, reason = self.approval_manager.is_approval_required(tool_name, tool_params)
+                entry = self.tool_registry.get_tool(tool_name) if self.tool_registry else None
+                req_approval, reason = self.approval_manager.is_approval_required(
+                    tool_name, tool_params, entry.definition if entry else None)
                 if req_approval:
                     existing_apps = self.repo.list_approvals(task_id)
                     already_approved = any(
                         a.get("tool_name") == tool_name and a.get("status") == "approved"
+                        and a.get("step_id") == step_id
+                        and json.loads(a.get("parameters") or "{}") == tool_params
                         for a in existing_apps
                     )
                     if not already_approved:
@@ -297,6 +290,12 @@ class AgentRuntime:
                     exit_code=0,
                     duration_ms=duration,
                 )
+
+            # Cancellation may have arrived while a tool was running. Do not
+            # transition the already-cancelled task back into verification.
+            if self.repo.get_task(task_id)["status"] == "cancelled":
+                return TaskResult(task_id=task_id, status="cancelled", steps=self.repo.list_steps(task_id),
+                                  duration_ms=(time.time() - start_time) * 1000)
 
             # Record tool call in database
             self.repo.record_tool_call(
@@ -467,21 +466,13 @@ class AgentRuntime:
         # If task was in planning with no recorded steps, generate plan
         if status == "planning" and not steps:
             plan = self.model_gateway.generate_plan(task["goal"], context, task_id=task_id)
-            steps = []
-            for s in plan.steps:
-                db_s = self.repo.record_step(task_id, s.step_number, s.step_name, s.criteria)
-                db_s["tool_name"] = s.tool_name
-                db_s["tool_parameters"] = s.tool_parameters
-                steps.append(db_s)
+            steps = self.repo.record_plan(task_id, plan.steps)
 
-        # Align unfinished steps with plan metadata
-        plan = self.model_gateway.generate_plan(task["goal"], context, task_id=task_id)
-        plan_step_map = {s.step_number: s for s in plan.steps}
-        for s in steps:
-            num = s["step_number"]
-            if num in plan_step_map:
-                s.setdefault("tool_name", plan_step_map[num].tool_name)
-                s.setdefault("tool_parameters", plan_step_map[num].tool_parameters)
+        # Legacy tasks without persisted tool metadata must not be re-planned silently:
+        # the regenerated action might differ from what the user approved.
+        missing = [s for s in steps if s.get("status") != "completed" and not s.get("tool_name")]
+        if missing:
+            raise ValueError("Cannot safely resume legacy task without persisted tool plan; create a new task")
 
         unfinished_steps = [s for s in steps if s.get("status") != "completed"]
         if not unfinished_steps and steps:

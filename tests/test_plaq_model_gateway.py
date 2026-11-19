@@ -65,7 +65,7 @@ class TestDeterministicPlanner:
 
     def test_criteria_verification_success(self):
         planner = DeterministicPlanner()
-        res = ToolResult(success=True, output="Circuit size=4, 4 qubits compiled", exit_code=0)
+        res = ToolResult(success=True, output="Circuit size=4, 4 qubits compiled, depth=5", exit_code=0)
         ok, msg = planner.verify_criteria("Circuit depth > 0, 4 qubits", res)
         assert ok is True
 

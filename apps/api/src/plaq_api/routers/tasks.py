@@ -145,6 +145,9 @@ def run_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task '{task_id}' not found")
     if background:
+        import os
+        if os.environ.get("PLAQ_QUEUE", "1").strip().lower() in {"0", "false", "off"}:
+            raise HTTPException(status_code=503, detail="Background queue is disabled")
         from plaq_agent_runtime.queue import get_queue
 
         queue = get_queue(repo, runtime)

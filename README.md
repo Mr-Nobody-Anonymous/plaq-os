@@ -21,6 +21,35 @@
 
 ---
 
+## Security and operational limits
+
+**Plaq-OS is currently a trusted-user, local prototype, not a production security
+boundary.** `PathGuard` checks paths used by file tools, and the process runner
+provides timeouts, but subprocesses are **not OS-sandboxed**: they can access
+the server user's files, environment, and network. Approval patterns are not a
+complete command-security policy. Do not run untrusted tasks or expose the
+service to untrusted networks. Production use requires independently tested
+process/container isolation, authorization, resource limits, and secure deployment.
+
+API authentication is enabled by default. Open the workbench and enter the API
+key when prompted; the key is stored in `~/.plaq/api_key` (or next to
+`PLAQ_DB_PATH`). Docker Compose binds to `127.0.0.1`; retrieve its key with
+`docker compose exec plaq cat /data/api_key`. Do not use `PLAQ_AUTH=off` except
+in an isolated local environment. Use TLS when accessing the service remotely.
+
+Plans created by this version are saved with their tool parameters. Older tasks
+without saved tool metadata cannot be safely resumed; create a new task instead.
+Workers do not automatically requeue running jobs at startup because another
+process may still own them. After confirming all workers have stopped, an
+operator can explicitly call `ControlPlaneRepository.requeue_orphaned_jobs()`.
+This is not a lease-based, distributed queue. Cancellation is cooperative
+between steps; a running subprocess can continue until completion or timeout.
+
+Quantum estimates are model-based, not hardware results; some components are
+toy approximations and do not submit to real QPUs. Dependencies are not fully
+locked, and results require environment capture and independent scientific
+validation. See [NISQ / FTQC lab limitations](docs/NISQ_FTQC_LAB.md).
+
 ## Table of Contents
 
 - [Executive Overview](#executive-overview)
@@ -98,8 +127,8 @@ Plaq-OS is engineered around five cohesive requirements designed to deliver a co
 ### 2. Plaq Agent Runtime & Sandbox (`services/agent-runtime`, `services/sandbox-manager`)
 - **7-Stage Execution Loop**: `Receive Task` &rarr; `Inspect Context` &rarr; `Plan & Define Criteria` &rarr; `Execute Tool` &rarr; `Collect Output` &rarr; `Verify Results` &rarr; `Review Diff & Deliver`.
 - **Typed Tool Registry**: 12 tools across 6 strict permission tiers (`read`, `write`, `git`, `process`, `quantum`, `artifact`).
-- **PathGuard Sandboxing**: Prevents directory traversal (`../../`), URL-encoded traversal (`%2e%2e`), null-byte injection, and symlink breakouts.
-- **Process Isolation**: Spawns isolated subprocesses with configurable execution timeouts, process-tree cleanup (`SIGKILL`/`taskkill`), and stdout/stderr stream capture.
+- **PathGuard File Checks**: Checks tool paths for directory traversal (`../../`), URL-encoded traversal (`%2e%2e`), null-byte injection, and symlink breakouts.
+- **Process Supervision**: Spawns ordinary subprocesses with configurable execution timeouts, process-tree cleanup (`SIGKILL`/`taskkill`), and stdout/stderr stream capture.
 - **Human Approval Gates**: Automatically suspends execution and prompts user confirmation for destructive actions (e.g. file deletions, sensitive commands).
 
 ### 3. Plaq Control Plane & Durable State (`services/control-plane`)
@@ -107,7 +136,7 @@ Plaq-OS is engineered around five cohesive requirements designed to deliver a co
 - **8-State Task Engine**: Governs transitions through `queued`, `planning`, `running`, `verifying`, `completed`, `failed`, `cancelled`, and `blocked`.
 - **Append-Only Audit Trail**: Cryptographically chains all tool invocations with SHA-256 hashes ($h_n = \text{SHA256}(h_{n-1} \parallel \text{payload})$).
 - **Secret Redaction**: Scrubbing engine automatically redacts AWS tokens, GitHub PATs, Slack credentials, and JWT keys prior to audit storage.
-- **Checkpoint Crash Recovery**: Rehydrates in-flight tasks and step histories upon server restart without data corruption.
+- **Checkpoint Recovery**: Restores persisted step histories; safe recovery of running jobs requires operator intervention.
 
 ### 4. Plaq Quantum Engine (`engines/quantum/src/plaq_quantum`)
 - **Optimal $T$-Gate Synthesis**: Ross-Selinger / gridsynth algorithm mapping arbitrary single-qubit rotations to exact Clifford+$T$ sequences ($N_T \approx 3.21 \log_2(1/\epsilon_{syn}) + 2.5$).
@@ -222,13 +251,13 @@ In the fault-tolerant era, quantum computation is limited by three critical phys
 
 ## Scientific Audit and Gap Analysis Verdict
 
-A rigorous scientific gap analysis was conducted on earlier prototypes of this project. Plaq OS v0.3.0 resolves **every identified limitation**:
+A scientific gap analysis identified limitations in earlier prototypes. The changes below address some of them, but the models remain approximations and require independent validation:
 
 | Gap Identified in Audit | Root Cause in Early Prototype | Resolution in Plaq OS v0.3.0 |
 |:---|:---|:---|
 | **1. Unsubstantiated "Hypothesis Confirmed" Claim** | Scalar cost improvement was conflated with universal qubit reduction, hiding Pareto trade-offs. | Changed to **Empirical Model-Based Results**. Added multi-objective Pareto trade-off transparency classifying qubit vs. runtime exchanges. |
 | **2. Synthetic / Toy QEC Error Model** | `stim_bridge.py` generated random numbers rather than simulating genuine stabilizer circuits. | Replaced with **Stim 1.16+ surface code circuits** and **PyMatching 2.4+ MWPM syndrome decoding** with Wilson score confidence intervals. |
-| **3. Arbitrary Rotation-to-T Scaling** | Arbitrary factor of 50 $T$-gates per rotation without synthesis derivation. | Implemented **Ross-Selinger / gridsynth optimal synthesis**: $N_T \approx 3.21 \log_2(1/\epsilon_{syn}) + 2.5$. |
+| **3. Arbitrary Rotation-to-T Scaling** | Arbitrary factor of 50 $T$-gates per rotation without synthesis derivation. | Added an **analytical T-count estimate** inspired by Ross–Selinger scaling: $N_T \approx 3.21 \log_2(1/\epsilon_{syn}) + 2.5$. This does not produce a synthesized gate sequence. |
 | **4. Lack of Hardware Literature Provenance** | Hardware error parameters lacked experimental references and calibration tolerances. | Added **peer-reviewed citations** (IBM Heron, IonQ Forte, QuEra Aquila, IBM qLDPC) with calibration uncertainty bounds ($\pm 10\% - 25\%$). |
 | **5. Undocumented Workload Suite** | Test circuits lacked formal problem definitions and verification specifications. | Created formal **`WORKLOAD_MANIFEST`** with explicit algorithmic semantics, Hamiltonian descriptions, and reference papers. |
 | **6. Cache Leakage in Search Benchmarks** | Shared compilation cache artificially boosted later search algorithms. | Implemented **cache isolation per search method** and **SHA-256 compilation fingerprinting**. |

@@ -18,6 +18,17 @@ class EventBroadcaster:
         self._subscribers: Set[asyncio.Queue] = set()
         self._ws_connections: Set[WebSocket] = set()
         self._lock = asyncio.Lock()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
+
+    def publish(self, event: PlatformEvent) -> None:
+        """Schedule a runtime event on the ASGI loop, including from worker threads."""
+        if self._loop and self._loop.is_running():
+            asyncio.run_coroutine_threadsafe(self.broadcast(event), self._loop)
+        else:
+            self.record(event.model_dump(mode="json"))
 
     @property
     def events(self) -> List[Dict[str, Any]]:

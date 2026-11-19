@@ -349,6 +349,7 @@ def quantum_estimate(params: QuantumEstimateParams, context: Any) -> ToolResult:
             hardware=hw,
             target_epsilon=params.target_epsilon,
             code_distance_override=code_d,
+            physical_error_override=params.physical_error,
         )
         out_data = {
             "feasible": cost_res.valid and feasible,

@@ -53,6 +53,8 @@ Tick **Add python.exe to PATH** if you use the python.org installer.
 
 ```bash
 docker compose up --build
+# In another terminal, retrieve the local workbench API key:
+docker compose exec plaq cat /data/api_key
 # workbench: http://127.0.0.1:8000/
 ```
 
