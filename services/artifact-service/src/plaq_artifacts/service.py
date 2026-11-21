@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -68,7 +69,7 @@ class ArtifactService:
     ) -> ArtifactRecord:
         """Publish and fingerprint an artifact, writing to disk and linking to task."""
         # 1. Resolve content bytes
-        if isinstance(content, Path) or (isinstance(content, str) and os.path.isfile(content)):
+        if isinstance(content, Path):
             source_path = Path(content)
             raw_bytes = source_path.read_bytes()
         elif isinstance(content, str):
@@ -82,15 +83,32 @@ class ArtifactService:
         sha256_hash = hashlib.sha256(raw_bytes).hexdigest()
         size_bytes = len(raw_bytes)
 
-        # 3. Content-addressable storage destination
-        target_dir = self.storage_dir / "tasks" / task_id
+        # Names are metadata, never path components. Blobs are immutable and keyed by hash.
+        from pathlib import PureWindowsPath
+        for label, value in (("task_id", task_id), ("name", name)):
+            if (not value or value in {".", ".."} or "/" in value or "\\" in value
+                    or PureWindowsPath(value).drive):
+                raise ValueError(f"Invalid artifact {label}")
+        target_dir = self.storage_dir / "blobs" / sha256_hash[:2]
         target_dir.mkdir(parents=True, exist_ok=True)
-        dest_path = target_dir / name
-
-        # Atomic file write via temp file
-        temp_dest = dest_path.with_suffix(dest_path.suffix + ".tmp")
-        temp_dest.write_bytes(raw_bytes)
-        temp_dest.replace(dest_path)
+        dest_path = target_dir / sha256_hash
+        if dest_path.exists():
+            if dest_path.is_symlink() or hashlib.sha256(dest_path.read_bytes()).hexdigest() != sha256_hash:
+                raise ArtifactIntegrityError("Existing artifact blob is corrupt")
+        else:
+            with tempfile.NamedTemporaryFile(dir=target_dir, delete=False) as tmp:
+                temp_dest = Path(tmp.name)
+                try:
+                    tmp.write(raw_bytes)
+                    tmp.flush()
+                    os.fsync(tmp.fileno())
+                except BaseException:
+                    temp_dest.unlink(missing_ok=True)
+                    raise
+            try:
+                os.replace(temp_dest, dest_path)
+            finally:
+                temp_dest.unlink(missing_ok=True)
 
         # 4. Create database record
         artifact_id = str(uuid.uuid4())

@@ -57,23 +57,20 @@ class TestDeterministicPlanner:
 
     def test_plan_generation_fallback(self):
         planner = DeterministicPlanner()
-        steps = planner.generate_plan(goal="Analyze data and generate docs", task_id="task-gen-1")
-        assert len(steps) == 3
-        assert steps[0].tool_name == "workspace.list"
-        assert steps[1].tool_name == "terminal.run"
-        assert steps[2].tool_name == "workspace.read"
+        with pytest.raises(ValueError, match="No deterministic plan"):
+            planner.generate_plan(goal="Analyze data and generate docs", task_id="task-gen-1")
 
     def test_criteria_verification_success(self):
         planner = DeterministicPlanner()
-        res = ToolResult(success=True, output="Circuit size=4, 4 qubits compiled", exit_code=0)
+        res = ToolResult(success=True, output="Circuit size=4, 4 qubits compiled, depth=5", exit_code=0)
         ok, msg = planner.verify_criteria("Circuit depth > 0, 4 qubits", res)
         assert ok is True
 
-        res_est = ToolResult(success=True, output="Metrics extracted: code_distance=3", exit_code=0)
+        res_est = ToolResult(success=True, output="Metrics extracted: code_distance=3, t_count=0", exit_code=0)
         ok, msg = planner.verify_criteria("T-count evaluated, code distance >= 3", res_est)
         assert ok is True
 
-        res_art = ToolResult(success=True, output="Artifact published: sha256=abc12345", exit_code=0)
+        res_art = ToolResult(success=True, output="Artifact published: sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", exit_code=0)
         ok, msg = planner.verify_criteria("SHA-256 artifact saved", res_art)
         assert ok is True
 
@@ -167,7 +164,7 @@ class TestLLMProviderFallback:
         llm._chat = lambda system, user, max_tokens=800, json_mode=False: json.dumps(  # type: ignore
             {"ok": True, "reason": "T-count present"}
         )
-        res = ToolResult(success=True, output="T-count evaluated, code_distance=5", exit_code=0)
+        res = ToolResult(success=True, output="t_count=10, code_distance=5", exit_code=0)
         ok, reason = llm.verify_criteria("T-count evaluated, code distance >= 3", res)
         assert ok is True
         assert "T-count" in reason
@@ -237,7 +234,7 @@ class TestModelGateway:
 
     def test_gateway_verify_criteria(self):
         gw = ModelGateway()
-        res = ToolResult(success=True, output="Artifact published: sha256=abcdef", exit_code=0)
+        res = ToolResult(success=True, output="Artifact published: sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", exit_code=0)
         ok, msg = gw.verify_criteria("SHA-256 artifact saved", res)
         assert ok is True
 

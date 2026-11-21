@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+import os
+from pathlib import Path
+
+from plaq_sandbox.guard import PathGuard
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
@@ -38,9 +42,13 @@ def create_task(
             detail="Goal cannot be empty",
         )
     try:
+        root = Path(os.environ.get("PLAQ_WORKSPACE", ".")).expanduser().resolve()
+        workspace = PathGuard.resolve_safe_path(root, payload.workspace_path or "")
+        if not workspace.is_dir():
+            raise ValueError("Workspace directory does not exist")
         task_dict = repo.create_task(
             goal=goal_str,
-            workspace_path=payload.workspace_path or "",
+            workspace_path=str(workspace),
             parameters=payload.parameters,
         )
         return task_dict
@@ -145,10 +153,16 @@ def run_task(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Task '{task_id}' not found")
     if background:
+        import os
+        if os.environ.get("PLAQ_QUEUE", "1").strip().lower() in {"0", "false", "off"}:
+            raise HTTPException(status_code=503, detail="Background queue is disabled")
         from plaq_agent_runtime.queue import get_queue
 
         queue = get_queue(repo, runtime)
-        job = queue.enqueue(task_id, action="execute")
+        try:
+            job = queue.enqueue(task_id, action="execute")
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return {"job": job, "mode": "background"}
     try:
         result = runtime.execute_task(task_id)

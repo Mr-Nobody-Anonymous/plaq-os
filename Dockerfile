@@ -17,6 +17,11 @@ RUN pip install --no-cache-dir \
     -e ./services/model-gateway -e ./services/artifact-service \
     -e ./services/agent-runtime -e ./engines/quantum \
     -e ./apps/api -e ./apps/cli -e ./apps/mcp
+# Run the service without root privileges. This is defense in depth, not a sandbox.
+RUN useradd --uid 10001 --create-home plaq \
+    && mkdir -p /data \
+    && chown -R plaq:plaq /data /app
+USER plaq
 VOLUME ["/data"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

@@ -72,3 +72,5 @@ def decide_approval(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Approval '{approval_id}' not found",
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

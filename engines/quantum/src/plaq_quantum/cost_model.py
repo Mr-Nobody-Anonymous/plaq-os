@@ -303,6 +303,7 @@ def evaluate_fault_tolerant_cost(
     decoder_latency_ns: Optional[float] = None,
     weight_qubits: float = 1.0,
     weight_time: float = 500.0,
+    physical_error_override: Optional[float] = None,
 ) -> CostEstimationResult:
     """
     Comprehensive fault-tolerant resource estimation.
@@ -315,7 +316,7 @@ def evaluate_fault_tolerant_cost(
 
     # Composite physical error rate integrating 2Q, 1Q, measurement, and spectator crosstalk
     p_comp = (hardware.two_qubit_error + 0.5 * hardware.single_qubit_error + 0.25 * hardware.measurement_error) * hardware.crosstalk_penalty
-    p_phys = p_comp
+    p_phys = p_comp if physical_error_override is None else physical_error_override
     p_th = hardware.surface_code_threshold
 
     if p_phys >= p_th:

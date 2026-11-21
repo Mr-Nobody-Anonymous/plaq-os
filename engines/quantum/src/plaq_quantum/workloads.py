@@ -111,6 +111,7 @@ def resolve_circuit(
     seed: int = 42,
     t_density: float = 0.4,
     trotter_steps: int = 2,
+    strict: bool = False,
 ) -> QuantumCircuit:
     """Build a Qiskit circuit from a named workload, bitstring, or OpenQASM body."""
     if qasm:
@@ -168,6 +169,9 @@ def resolve_circuit(
     }
     if key in factories:
         return factories[key]()
+
+    if strict:
+        raise ValueError(f"Unknown workload: {workload!r}")
 
     if "qaoa" in key or "maxcut" in key:
         return make_qaoa_circuit(n or 6, p_layers=p_layers)

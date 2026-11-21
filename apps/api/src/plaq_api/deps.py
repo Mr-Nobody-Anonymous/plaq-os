@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from typing import Optional
+import os
+from pathlib import Path
+
+from plaq_contracts.tool import PermissionTier
 
 from plaq_control_plane.repository import ControlPlaneRepository
 from plaq_agent_runtime.loop import AgentRuntime
@@ -32,6 +36,8 @@ def set_repo(repo: ControlPlaneRepository) -> None:
     """Override repository (e.g. for testing with in-memory or fixture database)."""
     global _default_repo
     _default_repo = repo
+    global _default_runtime
+    _default_runtime = None
 
 
 def get_broadcaster() -> EventBroadcaster:
@@ -44,7 +50,15 @@ def get_runtime() -> AgentRuntime:
     global _default_runtime
     if _default_runtime is None:
         repo = get_repo()
-        _default_runtime = AgentRuntime(repository=repo)
+        # Host commands and git are not sandboxed. API execution is opt-in only.
+        allow_host = os.environ.get("PLAQ_ALLOW_HOST_COMMANDS", "").strip().lower() in {"1", "true", "yes"}
+        tiers = set(PermissionTier) if allow_host else {
+            PermissionTier.READ_ONLY, PermissionTier.WORKSPACE_WRITE,
+            PermissionTier.QUANTUM_ENGINE, PermissionTier.PRIVILEGED,
+        }
+        root = Path(os.environ.get("PLAQ_WORKSPACE", ".")).expanduser().resolve()
+        _default_runtime = AgentRuntime(repository=repo, event_broadcaster=broadcaster.publish,
+                                        allowed_tiers=tiers, allowed_workspace_root=root)
     return _default_runtime
 
 

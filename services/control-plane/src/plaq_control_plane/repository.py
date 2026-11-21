@@ -145,10 +145,12 @@ class ControlPlaneRepository:
                     updated_at = ?,
                     completed_at = COALESCE(?, completed_at),
                     error = COALESCE(?, error)
-                WHERE id = ?
+                WHERE id = ? AND status = ?
                 """,
-                (to_status, now, completed_at, error, task_id),
+                (to_status, now, completed_at, error, task_id, current_status),
             )
+            if conn.execute("SELECT changes()").fetchone()[0] != 1:
+                raise ValueError("Task status changed concurrently; retry the operation")
         return self.get_task(task_id)  # type: ignore
 
     # -----------------------------------------------------------------------
@@ -161,6 +163,8 @@ class ControlPlaneRepository:
         step_number: int,
         step_name: str,
         criteria: str,
+        tool_name: Optional[str] = None,
+        tool_parameters: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Atomically insert step and advance task current_step_id."""
         task = self.get_task(task_id)
@@ -173,10 +177,10 @@ class ControlPlaneRepository:
         with self.db.transaction() as conn:
             conn.execute(
                 """
-                INSERT INTO steps (id, task_id, step_number, step_name, criteria, status, started_at)
-                VALUES (?, ?, ?, ?, ?, 'running', ?)
+                INSERT INTO steps (id, task_id, step_number, step_name, criteria, status, started_at, tool_name, tool_parameters)
+                VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?)
                 """,
-                (step_id, task_id, step_number, step_name, criteria, now),
+                (step_id, task_id, step_number, step_name, criteria, now, tool_name, json.dumps(tool_parameters or {}) if tool_name else None),
             )
             conn.execute(
                 "UPDATE tasks SET current_step_id = ?, updated_at = ? WHERE id = ?",
@@ -186,6 +190,27 @@ class ControlPlaneRepository:
         with self.db.connection() as conn:
             cursor = conn.execute("SELECT * FROM steps WHERE id = ?", (step_id,))
             return dict(cursor.fetchone())
+
+    def record_plan(self, task_id: str, steps: List[Any]) -> List[Dict[str, Any]]:
+        """Persist the entire execution plan atomically, including exact tool inputs."""
+        if not steps:
+            raise ValueError("Cannot execute an empty plan")
+        now = _utc_now_iso()
+        with self.db.transaction() as conn:
+            if conn.execute("SELECT 1 FROM steps WHERE task_id = ?", (task_id,)).fetchone():
+                raise ValueError("Task already has a plan")
+            for step in steps:
+                if not step.tool_name:
+                    raise ValueError("Plan steps must specify a tool")
+                conn.execute(
+                    "INSERT INTO steps (id, task_id, step_number, step_name, criteria, status, started_at, tool_name, tool_parameters) "
+                    "VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?)",
+                    (str(uuid.uuid4()), task_id, step.step_number, step.step_name, step.criteria,
+                     now, step.tool_name, json.dumps(step.tool_parameters or {})),
+                )
+            first = conn.execute("SELECT id FROM steps WHERE task_id = ? ORDER BY step_number LIMIT 1", (task_id,)).fetchone()
+            conn.execute("UPDATE tasks SET current_step_id = ?, updated_at = ? WHERE id = ?", (first[0], now, task_id))
+        return self.list_steps(task_id)
 
     def get_step(self, step_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve step by ID."""
@@ -325,10 +350,12 @@ class ControlPlaneRepository:
                 """
                 UPDATE approvals
                 SET status = ?, decided_at = ?, decided_by = ?, decision_reason = ?
-                WHERE id = ?
+                WHERE id = ? AND status = 'pending'
                 """,
                 (status, now, decided_by, reason, approval_id),
             )
+            if conn.execute("SELECT changes()").fetchone()[0] != 1:
+                raise ValueError("Approval has already been decided")
 
         if approved:
             self.transition_task(task_id, "running")
@@ -464,17 +491,22 @@ class ControlPlaneRepository:
     # -----------------------------------------------------------------------
 
     def create_job(self, task_id: str, action: str = "execute") -> Dict[str, Any]:
-        """Enqueue a background job for a task."""
-        if self.get_task(task_id) is None:
-            raise KeyError(f"Task '{task_id}' not found.")
+        """Enqueue once per task while a job is queued or running."""
         job_id = str(uuid.uuid4())
         now = _utc_now_iso()
         with self.db.transaction() as conn:
+            if conn.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone() is None:
+                raise KeyError(f"Task '{task_id}' not found.")
+            active = conn.execute(
+                "SELECT * FROM jobs WHERE task_id = ? AND status IN ('queued', 'running') ORDER BY created_at LIMIT 1",
+                (task_id,),
+            ).fetchone()
+            if active:
+                if active["action"] != action:
+                    raise ValueError("Task already has an active job with a different action")
+                return dict(active)
             conn.execute(
-                """
-                INSERT INTO jobs (id, task_id, action, status, created_at)
-                VALUES (?, ?, ?, 'queued', ?)
-                """,
+                "INSERT INTO jobs (id, task_id, action, status, created_at) VALUES (?, ?, ?, 'queued', ?)",
                 (job_id, task_id, action, now),
             )
         return self.get_job(job_id)  # type: ignore

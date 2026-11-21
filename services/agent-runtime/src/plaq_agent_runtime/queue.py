@@ -75,10 +75,6 @@ class BackgroundTaskQueue:
         with self._lock:
             if self._started:
                 return
-            try:
-                self.recover_orphans()
-            except Exception:
-                pass
             self._stop.clear()
             for i in range(self.max_workers):
                 t = threading.Thread(
@@ -95,8 +91,9 @@ class BackgroundTaskQueue:
         for t in self._threads:
             t.join(timeout=timeout)
         with self._lock:
-            self._threads.clear()
-            self._started = False
+            self._threads = [t for t in self._threads if t.is_alive()]
+            # Do not start duplicate workers while a timed-out shutdown is still executing.
+            self._started = bool(self._threads)
 
     def enqueue(self, task_id: str, action: str = "execute") -> Dict[str, Any]:
         """Record a job and ensure workers are running."""
@@ -155,11 +152,20 @@ class BackgroundTaskQueue:
                     result = self.runtime.execute_task(job["task_id"])
                 self.repo.update_job(
                     job["id"],
-                    status="completed",
+                    status={"failed": "failed", "cancelled": "cancelled"}.get(result.status, "completed"),
                     result=json.dumps(_result_payload(result)),
+                    error=result.error,
                 )
             except Exception as exc:
-                self.repo.update_job(job["id"], status="failed", error=str(exc))
+                task = self.repo.get_task(job["task_id"])
+                if task and task["status"] in {"planning", "running", "verifying", "blocked"}:
+                    try:
+                        self.repo.transition_task(job["task_id"], "failed", error=str(exc))
+                    except ValueError:
+                        pass  # Another worker or cancellation changed the task.
+                task = self.repo.get_task(job["task_id"])
+                state = "cancelled" if task and task["status"] == "cancelled" else "failed"
+                self.repo.update_job(job["id"], status=state, error=str(exc))
 
 
 _queues: Dict[int, BackgroundTaskQueue] = {}

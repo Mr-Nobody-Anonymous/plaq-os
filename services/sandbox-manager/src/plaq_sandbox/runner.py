@@ -1,4 +1,4 @@
-"""Subprocess execution runner with timeout support and Windows process-tree termination."""
+"""Subprocess supervision with timeouts. This is not an OS security sandbox."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 import shlex
 import signal
 import subprocess
+import threading
 import sys
 import time
 from typing import Dict, List, Optional, Union
@@ -23,6 +24,7 @@ class ProcessResult(PlaqBaseModel):
     stderr: str = ""
     duration_ms: float = 0.0
     timed_out: bool = False
+    cancelled: bool = False
     pid: Optional[int] = None
 
     @property
@@ -31,7 +33,7 @@ class ProcessResult(PlaqBaseModel):
 
     @property
     def success(self) -> bool:
-        return self.exit_code == 0 and not self.timed_out
+        return self.exit_code == 0 and not self.timed_out and not self.cancelled
 
     @property
     def output(self) -> str:
@@ -88,7 +90,7 @@ def kill_process_tree(pid: int) -> None:
 
 
 class ProcessRunner:
-    """Sandboxed subprocess runner with timeout enforcement and process-tree termination."""
+    """Run host subprocesses with timeouts and process-tree termination (no isolation)."""
 
     WINDOWS_ESSENTIAL_ENV = {
         "SystemRoot",
@@ -136,9 +138,13 @@ class ProcessRunner:
         input_data: Optional[str] = None,
         text: bool = True,
         raise_on_timeout: bool = False,
+        cancel_event: Optional[threading.Event] = None,
     ) -> ProcessResult:
         if timeout_sec is not None and timeout_sec <= 0:
             raise ValueError(f"Timeout must be positive, got {timeout_sec}")
+
+        if cancel_event is not None and cancel_event.is_set():
+            return ProcessResult(exit_code=-1, stderr="Process cancelled", cancelled=True)
 
         effective_timeout = timeout_sec if timeout_sec is not None else self.default_timeout_sec
         effective_cwd = Path(cwd or self.default_cwd or os.getcwd()).resolve()
@@ -151,11 +157,8 @@ class ProcessRunner:
         resolved_env = self._prepare_env(env)
 
         creationflags = 0
-        preexec_fn = None
         if sys.platform == "win32":
             creationflags = 0x08000000  # CREATE_NO_WINDOW
-        else:
-            preexec_fn = os.setsid
 
         t0 = time.perf_counter()
         proc = subprocess.Popen(
@@ -167,8 +170,22 @@ class ProcessRunner:
             stderr=subprocess.PIPE,
             text=text,
             creationflags=creationflags,
-            preexec_fn=preexec_fn,
+            start_new_session=sys.platform != "win32",
         )
+
+        done = threading.Event()
+        cancelled = threading.Event()
+        watcher = None
+        if cancel_event is not None:
+            def watch_cancellation() -> None:
+                while not done.wait(0.05):
+                    if cancel_event.is_set():
+                        if proc.poll() is None:
+                            cancelled.set()
+                            kill_process_tree(proc.pid)
+                        return
+            watcher = threading.Thread(target=watch_cancellation, daemon=True)
+            watcher.start()
 
         timed_out = False
         stdout_str = ""
@@ -204,7 +221,15 @@ class ProcessRunner:
                     stderr=stderr_str,
                 ) from exc
 
+        finally:
+            done.set()
+            if watcher is not None:
+                watcher.join()
+
         duration_ms = (time.perf_counter() - t0) * 1000.0
+        if cancelled.is_set():
+            stderr_str = (stderr_str + "\nProcess cancelled").strip()
+            exit_code = -1
 
         return ProcessResult(
             exit_code=exit_code,
@@ -212,6 +237,7 @@ class ProcessRunner:
             stderr=stderr_str,
             duration_ms=duration_ms,
             timed_out=timed_out,
+            cancelled=cancelled.is_set(),
             pid=proc.pid,
         )
 

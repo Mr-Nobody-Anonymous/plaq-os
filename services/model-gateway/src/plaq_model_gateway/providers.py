@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from plaq_contracts.step import PlanStep, StepStatus
@@ -83,7 +84,7 @@ class DeterministicPlanner(BaseModelProvider):
                     step_name="Publish Resource Manifest",
                     criteria="SHA-256 artifact saved",
                     tool_name="artifacts.publish",
-                    tool_parameters={"file": "bv_resource_report.json"},
+                    tool_parameters={"name": "bv_resource_report.json", "previous_output": True},
                 ),
             ]
 
@@ -120,7 +121,7 @@ class DeterministicPlanner(BaseModelProvider):
                     step_name="Publish Resource Manifest",
                     criteria="SHA-256 artifact saved",
                     tool_name="artifacts.publish",
-                    tool_parameters={"file": "pareto_report.json"},
+                    tool_parameters={"name": "pareto_report.json", "previous_output": True},
                 ),
             ]
 
@@ -131,7 +132,7 @@ class DeterministicPlanner(BaseModelProvider):
                     task_id=tid,
                     step_number=1,
                     step_name="Clean Cache & Artifacts",
-                    criteria="Clean completed",
+                    criteria="Exit code 0",
                     tool_name="terminal.run",
                     tool_parameters={"cmd": "git clean -fdx"},
                 ),
@@ -139,7 +140,7 @@ class DeterministicPlanner(BaseModelProvider):
                     task_id=tid,
                     step_number=2,
                     step_name="Verify Clean Status",
-                    criteria="Working tree clean",
+                    criteria="Exit code 0",
                     tool_name="git.diff",
                     tool_parameters={},
                 ),
@@ -152,7 +153,7 @@ class DeterministicPlanner(BaseModelProvider):
                     task_id=tid,
                     step_number=1,
                     step_name="Run Test Suite",
-                    criteria="Tests pass cleanly",
+                    criteria="Exit code 0",
                     tool_name="tests.run",
                     tool_parameters={"test_path": "tests/"},
                 ),
@@ -160,7 +161,7 @@ class DeterministicPlanner(BaseModelProvider):
                     task_id=tid,
                     step_number=2,
                     step_name="Inspect Test Results",
-                    criteria="No test failures",
+                    criteria="Exit code 0",
                     tool_name="workspace.list",
                     tool_parameters={"path": "."},
                 ),
@@ -446,33 +447,8 @@ class DeterministicPlanner(BaseModelProvider):
                 ),
             ]
 
-        # 9. Default Generic Flow
-        return [
-            PlanStep(
-                task_id=tid,
-                step_number=1,
-                step_name="Inspect Workspace Context",
-                criteria="Files identified",
-                tool_name="workspace.list",
-                tool_parameters={"path": "."},
-            ),
-            PlanStep(
-                task_id=tid,
-                step_number=2,
-                step_name="Execute Goal Operation",
-                criteria="Exit code 0",
-                tool_name="terminal.run",
-                tool_parameters={"cmd": "python --version"},
-            ),
-            PlanStep(
-                task_id=tid,
-                step_number=3,
-                step_name="Review and Deliver",
-                criteria="Context reviewed",
-                tool_name="workspace.read",
-                tool_parameters={"path": "README.md"},
-            ),
-        ]
+        # Never claim that a generic inspection completed an unrelated goal.
+        raise ValueError("No deterministic plan is available for this goal; use a supported quantum task or configure an LLM planner.")
 
     def verify_criteria(
         self,
@@ -489,31 +465,61 @@ class DeterministicPlanner(BaseModelProvider):
         c_lower = criteria.lower()
         out = (tool_result.output or "").lower()
 
-        # Circuit depth / qubits criteria
-        if "4 qubits" in c_lower or "depth" in c_lower:
-            if "qubit" in out or "size=" in out or tool_result.success:
-                return True, "Circuit compilation criteria satisfied"
+        # Numeric acceptance criteria require actual evidence, not just exit code 0.
+        aliases = {"physical qubits": ("physical_qubits",), "code distance": ("code_distance",),
+                   "t-count": ("t_count", "t_ops"), "depth": ("depth", "circuit_depth"),
+                   "shots": ("total_shots", "shots")}
+        try:
+            data = json.loads(tool_result.output or "")
+            if not isinstance(data, dict):
+                data = {}
+        except (ValueError, TypeError):
+            data = {}
+        numeric = re.compile(r"(physical qubits|code distance|t-count|depth|shots)\s*(<=|>=|==|<|>)\s*(\d+(?:\.\d+)?)")
+        for match in numeric.finditer(c_lower):
+            label, op, threshold = match.groups()
+            value = next((data[k] for k in aliases[label] if k in data), None)
+            if value is None:
+                pattern = r"(?:" + "|".join(re.escape(k).replace("_", "[_ ]") for k in aliases[label]) + r")\s*[=:]\s*(\d+(?:\.\d+)?)"
+                found = re.search(pattern, out)
+                value = float(found.group(1)) if found else None
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return False, f"Missing evidence for {match.group(0)}"
+            limit = float(threshold)
+            passed = {"<=": value <= limit, ">=": value >= limit, "==": value == limit,
+                      "<": value < limit, ">": value > limit}[op]
+            if not passed:
+                return False, f"Criterion {match.group(0)} failed (actual {value})"
 
-        # Code distance / cost metrics criteria
-        if "code distance" in c_lower or "t-count" in c_lower:
-            if "distance" in out or "metrics" in out or "feasible" in out or tool_result.success:
-                return True, "Quantum resource metrics evaluated successfully"
-
-        # Artifact publishing criteria
-        if "artifact" in c_lower or "sha-256" in c_lower:
-            if "sha256=" in out or "published" in out or "artifact" in out or tool_result.success:
-                return True, "Artifact saved and published"
-
-        # Clean / maintenance criteria
-        if "clean" in c_lower:
-            if "clean" in out or tool_result.success:
-                return True, "Cleanup verified"
-
-        # Fallback check
-        if tool_result.success and (tool_result.exit_code is None or tool_result.exit_code == 0):
-            return True, f"Criteria '{criteria}' satisfied"
-
-        return False, f"Criteria '{criteria}' not clearly satisfied by output"
+        numeric_matches = list(numeric.finditer(c_lower))
+        qubit_match = re.search(r"\b(\d+)\s+qubits\b", c_lower)
+        if qubit_match:
+            value = data.get("num_qubits", data.get("qubits"))
+            if value is None:
+                found = re.search(r"\b(\d+)\s+qubits\b", out)
+                value = int(found.group(1)) if found else None
+            if value is None or str(value) != qubit_match.group(1):
+                return False, "Missing or incorrect qubit count"
+        if "t-count evaluated" in c_lower:
+            value = data.get("t_count", data.get("t_ops"))
+            if value is None and not re.search(r"(?:t[_ -]count|t_ops)\s*[=:]\s*\d+", out):
+                return False, "Missing evidence for T-count"
+        if "sha-256 artifact saved" in c_lower:
+            if not re.search(r"\bsha256=[0-9a-f]{64}\b", out):
+                return False, "Missing evidence for artifact SHA-256"
+            return True, "Artifact published with SHA-256"
+        if numeric_matches or qubit_match:
+            parts = [part.strip().removeprefix("circuit ") for part in re.split(r",|\band\b", c_lower)]
+            supported = all(numeric.fullmatch(part) or re.fullmatch(r"\d+\s+qubits", part)
+                            or part == "t-count evaluated" for part in parts)
+            if not supported:
+                return False, f"Cannot verify criterion: {criteria}"
+            return bool(tool_result.success), "Measured criteria satisfied" if tool_result.success else "Tool failed"
+        if c_lower.strip() in {"exit code 0", "exit code == 0"}:
+            return bool(tool_result.success and tool_result.exit_code == 0), "Exit code checked"
+        return False, f"Cannot verify criterion: {criteria}"
 
     def summarize_delivery(
         self,
@@ -762,8 +768,8 @@ class LLMProvider(BaseModelProvider):
         context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[bool, str]:
         det_ok, det_reason = self._fallback.verify_criteria(criteria, tool_result, context)
-        # Never let the LLM override a hard tool failure.
-        if not tool_result.success or (tool_result.exit_code not in (None, 0)):
+        # Never let the LLM override a hard tool failure or failed numerical check.
+        if not tool_result.success or (tool_result.exit_code not in (None, 0)) or (not det_ok and not det_reason.startswith("Cannot verify criterion:")):
             return det_ok, det_reason
         flag = os.environ.get("PLAQ_LLM_VERIFY", "1").strip().lower()
         if not self.api_key or flag in {"0", "false", "off"}:

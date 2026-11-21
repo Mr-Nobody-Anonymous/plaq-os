@@ -253,26 +253,56 @@ def workspace_patch(params: WorkspacePatchParams, context: Any) -> ToolResult:
                 )
             new_content = content.replace(params.target, params.replacement)
         elif params.diff is not None:
-            # Minimal unified diff applier for simple single-hunk diffs
-            diff_lines = params.diff.splitlines()
-            hunk_removals = []
-            hunk_additions = []
-            in_hunk = False
-            for dl in diff_lines:
-                if dl.startswith("@@"):
-                    in_hunk = True
+            # Apply each hunk against its declared context; never append on mismatch.
+            import re
+            original = content.splitlines(keepends=True)
+            diff_lines = params.diff.splitlines(keepends=True)
+            result = []
+            cursor = 0
+            i = 0
+            hunks = 0
+            while i < len(diff_lines):
+                if not diff_lines[i].startswith("@@"):
+                    i += 1
                     continue
-                if in_hunk:
-                    if dl.startswith("-"):
-                        hunk_removals.append(dl[1:])
-                    elif dl.startswith("+"):
-                        hunk_additions.append(dl[1:])
-            target_block = "\n".join(hunk_removals)
-            replacement_block = "\n".join(hunk_additions)
-            if target_block and target_block in content:
-                new_content = content.replace(target_block, replacement_block, 1)
-            else:
-                new_content = content + "\n" + replacement_block
+                match = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", diff_lines[i])
+                if not match:
+                    raise ValueError("Invalid patch hunk header")
+                old_start = int(match.group(1))
+                old_count = int(match.group(2) or 1)
+                new_count = int(match.group(4) or 1)
+                target = old_start if old_count == 0 else old_start - 1
+                if target < cursor or target > len(original):
+                    raise ValueError("Patch hunk position is invalid")
+                result.extend(original[cursor:target])
+                cursor = target
+                removed = added = 0
+                i += 1
+                while i < len(diff_lines) and not diff_lines[i].startswith("@@"):
+                    line = diff_lines[i]
+                    if line.startswith(("--- ", "+++ ")):
+                        break
+                    if line.startswith("\\ No newline"):
+                        raise ValueError("Patch without final newline is not supported")
+                    if not line or line[0] not in " +-":
+                        raise ValueError("Invalid patch hunk line")
+                    prefix, text = line[0], line[1:]
+                    if prefix in " -":
+                        if cursor >= len(original) or original[cursor] != text:
+                            raise ValueError("Patch context does not match file")
+                        cursor += 1
+                        removed += 1
+                    if prefix in " +":
+                        result.append(text)
+                        added += 1
+                    i += 1
+                if removed != old_count or added != new_count:
+                    raise ValueError("Patch hunk line counts do not match")
+                hunks += 1
+            if not hunks:
+                raise ValueError("Patch contains no hunks")
+            result.extend(original[cursor:])
+            new_content = "".join(result)
         else:
             return ToolResult(
                 success=False,

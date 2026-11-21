@@ -391,6 +391,7 @@ def handle_task(args: argparse.Namespace) -> int:
 
         db_path = _db_path()
         repo = ControlPlaneRepository(db_path)
+        queue = None
         try:
             runtime = AgentRuntime(repository=repo)
             if args.inline:
@@ -402,17 +403,23 @@ def handle_task(args: argparse.Namespace) -> int:
                     "error": result.error,
                     "mode": "inline",
                 }
-            else:
+            elif args.wait:
                 queue = BackgroundTaskQueue(repo, runtime)
                 job = queue.enqueue(args.task_id)
-                if args.wait:
-                    job = queue.wait(job["id"], timeout=300)
+                job = queue.wait(job["id"], timeout=300)
+                payload = {"mode": "background", "job": job}
+            else:
+                # The CLI exits immediately: do not start a daemon worker that
+                # would die with it. A running server or `plaq worker` drains it.
+                job = repo.create_job(args.task_id)
                 payload = {"mode": "background", "job": job}
             if args.json:
                 print(json.dumps(payload, indent=2, default=str))
             else:
                 print(json.dumps(payload, indent=2, default=str))
         finally:
+            if queue is not None:
+                queue.stop()
             repo.close()
         return 0
 
@@ -435,7 +442,12 @@ def handle_quantum(args: argparse.Namespace) -> int:
         elif circuit_name == "qaoa":
             circuit = pq.circuits.make_qaoa_circuit(n_qubits=args.qubits)
         else:
-            circuit = pq.circuits.make_test_circuit(n_qubits=args.qubits)
+            from plaq_quantum.workloads import resolve_circuit
+            try:
+                circuit = resolve_circuit(workload=circuit_name, qubits=args.qubits, strict=True)
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return 1
 
         metrics = pq.cost_model.extract_circuit_metrics(circuit)
         data = {

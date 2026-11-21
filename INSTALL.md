@@ -53,6 +53,8 @@ Tick **Add python.exe to PATH** if you use the python.org installer.
 
 ```bash
 docker compose up --build
+# In another terminal, retrieve the local workbench API key:
+docker compose exec plaq cat /data/api_key
 # workbench: http://127.0.0.1:8000/
 ```
 
@@ -114,11 +116,13 @@ python -m plaq_cli doctor
 
 ## 6. Environment
 
-Copy `.env.example` to `.env` (or run `plaq init`). Important variables:
+Set environment variables before starting Plaq-OS. `.env.example` is a template; copying it to `.env` does not automatically load it for every entry point. Important variables:
 
 - `PLAQ_DB_PATH` — SQLite file (default `~/.plaq/plaq.db`, Windows `%USERPROFILE%\.plaq\plaq.db`)
 - `PLAQ_AUTH=off` — disable API-key auth for local demos
 - `PLAQ_HOST=0.0.0.0` — bind every interface (Docker / LAN)
+- `PLAQ_WORKSPACE` — root directory for API task workspaces
+- `PLAQ_ALLOW_HOST_COMMANDS=1` — opt in to unsandboxed host commands and Git in API tasks (trusted local use only)
 - `OPENAI_API_KEY` — enable the LLM planner
 
 ## 7. Uninstall

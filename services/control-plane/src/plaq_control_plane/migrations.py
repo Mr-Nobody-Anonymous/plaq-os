@@ -51,8 +51,17 @@ def _m001_jobs(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
 
 
+def _m002_step_plan(conn: sqlite3.Connection) -> None:
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(steps)")}
+    if "tool_name" not in columns:
+        conn.execute("ALTER TABLE steps ADD COLUMN tool_name TEXT")
+    if "tool_parameters" not in columns:
+        conn.execute("ALTER TABLE steps ADD COLUMN tool_parameters TEXT")
+
+
 MIGRATIONS: Sequence[Tuple[int, str, MigrationFn]] = (
     (1, "jobs_table", _m001_jobs),
+    (2, "step_plan", _m002_step_plan),
 )
 
 
